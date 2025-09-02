@@ -148,6 +148,10 @@ start_dev_server() {
     
     # 设置环境变量
     export PORT=$port
+    # 为文件监听开启轮询，避免某些文件系统下 HMR 不生效（如网络盘、Docker 卷、CI 工作区）
+    export CHOKIDAR_USEPOLLING=1
+    export WATCHPACK_POLLING=true
+    export WATCHPACK_POLLING_INTERVAL=500
     
     # 启动服务器（显式传入端口给 Next）
     log_info "执行 npm run dev -- --port $port..."
@@ -220,7 +224,7 @@ main() {
     done
     
     log_info "========================================="
-    log_info "虚拟机管理平台 - 部署脚本"
+    log_info "Omni平台 - 部署脚本"
     log_info "========================================="
     
     # 检查系统要求
