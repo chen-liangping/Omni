@@ -10,6 +10,8 @@ interface Props { params: Promise<{ id: string }> }
 
 export default function ProjectDetailRoute({ params }: Props) {
   const { id } = React.use(params)
-  return <ProjectDetail projectId={id} />
+  // 解码URL参数，因为项目名称可能包含特殊字符
+  const decodedId = decodeURIComponent(id)
+  return <ProjectDetail projectId={decodedId} />
 }
 

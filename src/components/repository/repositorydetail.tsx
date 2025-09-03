@@ -1,7 +1,8 @@
 "use client"
 import React, { useState } from 'react'
-import { Checkbox, Collapse, Tabs, Alert } from 'antd'
-import { DownOutlined, RightOutlined, CheckCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
+import { Checkbox, Collapse, Tabs, Alert, Table as AntTable, Button as AntButton, Space, Modal, Form, Input, Popconfirm, message } from 'antd'
+import { DownOutlined, RightOutlined, CheckCircleOutlined, ExclamationCircleOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import type { ColumnsType } from 'antd/es/table'
 import { useQuery } from '@tanstack/react-query'
 
 interface BranchRule {
@@ -27,9 +28,17 @@ interface InitStatus {
   }[];
 }
 
+interface Branch {
+  id: string;
+  name: string;
+  createdAt: string;
+  isDefault?: boolean;
+  description?: string;  // 功能说明
+}
+
 export default function RepositoryDetailPage({ repoId: propRepoId }: { repoId?: string }) {
   const repoId = propRepoId ?? '';
-  const [activeTab, setActiveTab] = useState("branch-rules");
+  const [activeTab, setActiveTab] = useState("branches");
   // 显式初始化对象并通过常量声明标注类型，避免在 useState 上传入泛型
   const initialOpenStates: Record<string, boolean> = {
     master: true,
@@ -37,6 +46,17 @@ export default function RepositoryDetailPage({ repoId: propRepoId }: { repoId?: 
     "deploy/develop": true
   };
   const [openStates, setOpenStates] = useState(initialOpenStates);
+
+  // 分支管理状态
+  const [branches, setBranches] = useState<Branch[]>([
+    { id: '1', name: 'main', createdAt: '2025-08-15 10:30:00', isDefault: true, description: '主分支，生产环境代码' },
+    { id: '2', name: 'develop', createdAt: '2025-09-01 14:20:00', isDefault: true,description: '部署分支，部署开发代码集成' },
+    { id: '3', name: 'feature/login', createdAt: '2025-09-10 16:45:00', description: '登录功能开发' },
+    { id: '4', name: 'feature/payment', createdAt: '2025-09-12 09:15:00', description: '支付功能开发' },
+    { id: '5', name: 'hotfix/security', createdAt: '2025-09-15 11:30:00', description: '安全漏洞修复' },
+  ]);
+  const [showCreateBranch, setShowCreateBranch] = useState(false);
+  const [branchForm] = Form.useForm();
 
   const { data: initStatus } = useQuery<InitStatus>({
     queryKey: ["repository-init-status", repoId],
@@ -78,6 +98,83 @@ export default function RepositoryDetailPage({ repoId: propRepoId }: { repoId?: 
     branchRules.forEach((b) => { next[b.name] = openedKeys.includes(b.name) })
     setOpenStates(next)
   }
+
+  // 分支管理功能
+  const handleCreateBranch = async () => {
+    try {
+      const values = await branchForm.validateFields() as { name: string; description: string };
+      const newBranch: Branch = {
+        id: String(Date.now()),
+        name: values.name,
+        description: values.description,
+        createdAt: new Date().toLocaleString('sv-SE').replace('T', ' ').substring(0, 19),
+      };
+      setBranches(prev => [newBranch, ...prev]);
+      setShowCreateBranch(false);
+      branchForm.resetFields();
+      message.success('分支创建成功');
+    } catch (error) {
+      console.error('创建分支失败:', error);
+    }
+  };
+
+  const handleDeleteBranch = (branchId: string, branchName: string) => {
+    setBranches(prev => prev.filter(branch => branch.id !== branchId));
+    message.success(`分支 ${branchName} 已删除`);
+  };
+
+  const branchColumns: ColumnsType<Branch> = [
+    {
+      title: '分支名称',
+      dataIndex: 'name',
+      key: 'name',
+      render: (name: string, record) => (
+        <Space>
+          <span style={{ fontWeight: record.isDefault ? 600 : 400 }}>{name}</span>
+          {record.isDefault && <span style={{ color: '#999', fontSize: 12 }}>（默认分支）</span>}
+        </Space>
+      ),
+    },
+    {
+      title: '功能说明',
+      dataIndex: 'description',
+      key: 'description',
+      render: (description: string) => (
+        <span style={{ color: '#666' }}>{description || '暂无说明'}</span>
+      ),
+    },
+    {
+      title: '创建时间',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      width: 180,
+    },
+    {
+      title: '操作',
+      key: 'actions',
+      width: 100,
+      render: (_, record) => (
+        record.isDefault ? (
+          <span style={{ color: '#999' }}>默认分支</span>
+        ) : (
+          <Popconfirm
+            title="删除分支"
+            description={`确定要删除分支 &ldquo;${record.name}&rdquo; 吗？`}
+            onConfirm={() => handleDeleteBranch(record.id, record.name)}
+            okText="确定"
+            cancelText="取消"
+          >
+            <AntButton
+              type="text"
+              danger
+              icon={<DeleteOutlined />}
+              size="small"
+            />
+          </Popconfirm>
+        )
+      ),
+    },
+  ];
 
   const branchRules: BranchRules[] = [
     {
@@ -174,6 +271,68 @@ export default function RepositoryDetailPage({ repoId: propRepoId }: { repoId?: 
           </div>
         )
 
+        const branchesContent = (
+          <div className="bg-white rounded-lg p-6" style={{ width: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontSize: 16, fontWeight: 600 }}>分支列表</div>
+              <AntButton 
+                type="primary" 
+                icon={<PlusOutlined />} 
+                onClick={() => setShowCreateBranch(true)}
+              >
+                新建分支
+              </AntButton>
+            </div>
+            <AntTable<Branch>
+              columns={branchColumns}
+              dataSource={branches}
+              rowKey="id"
+              pagination={false}
+              size="middle"
+            />
+            
+            <Modal
+              title="新建分支"
+              open={showCreateBranch}
+              onCancel={() => {
+                setShowCreateBranch(false);
+                branchForm.resetFields();
+              }}
+              onOk={handleCreateBranch}
+              okText="创建"
+              cancelText="取消"
+            >
+              <Form form={branchForm} layout="vertical">
+                <Form.Item 
+                  name="name" 
+                  label="分支名称" 
+                  rules={[
+                    { required: true, message: '请输入分支名称' },
+                    { pattern: /^[a-zA-Z0-9/_-]+$/, message: '分支名称只能包含字母、数字、下划线、斜杠和连字符' }
+                  ]}
+                >
+                  <Input placeholder="例如：feature/new-feature" />
+                </Form.Item>
+                <Form.Item 
+                  name="description" 
+                  label="功能说明" 
+                  rules={[
+                    { required: true, message: '请输入功能说明' },
+                    { max: 200, message: '功能说明不能超过200个字符' }
+                  ]}
+                >
+                  <Input.TextArea 
+                    rows={3}
+                    placeholder="请描述该分支的功能和用途，例如：用户登录功能开发"
+                    showCount
+                    maxLength={200}
+                  />
+                </Form.Item>
+              </Form>
+            </Modal>
+          </div>
+        )
+
         const initStatusContent = (
           <div className="bg-white rounded-lg p-6" style={{ width: '100%' }}>
             {initStatus?.status === 'failed' && (
@@ -215,8 +374,9 @@ export default function RepositoryDetailPage({ repoId: propRepoId }: { repoId?: 
         )
 
         const items = [
+          { key: 'branches', label: '分支', children: branchesContent },
           { key: 'branch-rules', label: '分支保护规则', children: branchRulesContent },
-          { key: 'init-status', label: '初始化状态', children: initStatusContent },
+          { key: 'init-status', label: '初始化', children: initStatusContent },
         ]
 
         return (

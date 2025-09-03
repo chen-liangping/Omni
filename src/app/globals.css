@@ -11,6 +11,7 @@
 
 html, body, #__next {
   height: 100%;
+  overflow-x: hidden; /* 防止页面出现横向滚动条 */
 }
 
 body {
@@ -20,6 +21,7 @@ body {
   color: #747d8c; /* 全局默认文字色（未显式设色时生效） */
   font-size: var(--font-size-base); /* 全局默认字号 */
   font-weight: var(--font-weight-base); /* 全局默认字重（是否加粗） */
+  overflow-x: hidden; /* 确保body不会出现横向滚动条 */
 }
 
 main {
