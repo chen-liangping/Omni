@@ -32,7 +32,6 @@ interface Branch {
   id: string;
   name: string;
   createdAt: string;
-  isDefault?: boolean;
   description?: string;  // 功能说明
 }
 
@@ -49,8 +48,8 @@ export default function RepositoryDetailPage({ repoId: propRepoId }: { repoId?: 
 
   // 分支管理状态
   const [branches, setBranches] = useState<Branch[]>([
-    { id: '1', name: 'main', createdAt: '2025-08-15 10:30:00', isDefault: true, description: '主分支，生产环境代码' },
-    { id: '2', name: 'develop', createdAt: '2025-09-01 14:20:00', isDefault: true,description: '部署分支，部署开发代码集成' },
+    { id: '1', name: 'main', createdAt: '2025-08-15 10:30:00', description: '主分支，生产环境代码' },
+    { id: '2', name: 'develop', createdAt: '2025-09-01 14:20:00', description: '部署分支，部署开发代码集成' },
     { id: '3', name: 'feature/login', createdAt: '2025-09-10 16:45:00', description: '登录功能开发' },
     { id: '4', name: 'feature/payment', createdAt: '2025-09-12 09:15:00', description: '支付功能开发' },
     { id: '5', name: 'hotfix/security', createdAt: '2025-09-15 11:30:00', description: '安全漏洞修复' },
@@ -98,7 +97,7 @@ export default function RepositoryDetailPage({ repoId: propRepoId }: { repoId?: 
     branchRules.forEach((b) => { next[b.name] = openedKeys.includes(b.name) })
     setOpenStates(next)
   }
-
+/*
   // 分支管理功能
   const handleCreateBranch = async () => {
     try {
@@ -122,17 +121,15 @@ export default function RepositoryDetailPage({ repoId: propRepoId }: { repoId?: 
     setBranches(prev => prev.filter(branch => branch.id !== branchId));
     message.success(`分支 ${branchName} 已删除`);
   };
-
+*/
+/*
   const branchColumns: ColumnsType<Branch> = [
     {
       title: '分支名称',
       dataIndex: 'name',
       key: 'name',
-      render: (name: string, record) => (
-        <Space>
-          <span style={{ fontWeight: record.isDefault ? 600 : 400 }}>{name}</span>
-          {record.isDefault && <span style={{ color: '#999', fontSize: 12 }}>（默认分支）</span>}
-        </Space>
+      render: (name: string) => (
+        <span>{name}</span>
       ),
     },
     {
@@ -154,28 +151,24 @@ export default function RepositoryDetailPage({ repoId: propRepoId }: { repoId?: 
       key: 'actions',
       width: 100,
       render: (_, record) => (
-        record.isDefault ? (
-          <span style={{ color: '#999' }}>默认分支</span>
-        ) : (
-          <Popconfirm
-            title="删除分支"
-            description={`确定要删除分支 &ldquo;${record.name}&rdquo; 吗？`}
-            onConfirm={() => handleDeleteBranch(record.id, record.name)}
-            okText="确定"
-            cancelText="取消"
-          >
-            <AntButton
-              type="text"
-              danger
-              icon={<DeleteOutlined />}
-              size="small"
-            />
-          </Popconfirm>
-        )
+        <Popconfirm
+          title="删除分支"
+          description={`确定要删除分支 &ldquo;${record.name}&rdquo; 吗？`}
+          onConfirm={() => handleDeleteBranch(record.id, record.name)}
+          okText="确定"
+          cancelText="取消"
+        >
+          <AntButton
+            type="text"
+            danger
+            icon={<DeleteOutlined />}
+            size="small"
+          />
+        </Popconfirm>
       ),
     },
   ];
-
+*/
   const branchRules: BranchRules[] = [
     {
       name: "master",
@@ -249,9 +242,10 @@ export default function RepositoryDetailPage({ repoId: propRepoId }: { repoId?: 
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               expandIcon={(panelProps: any) => (panelProps?.isActive ? <DownOutlined /> : <RightOutlined />)}
               onChange={handleCollapseChange}
-            >
-              {branchRules.map((branch) => (
-                <Collapse.Panel header={<div style={{ fontWeight: 600 }}>{branch.name}</div>} key={branch.name}>
+              items={branchRules.map((branch) => ({
+                key: branch.name,
+                label: <div style={{ fontWeight: 600 }}>{branch.name}</div>,
+                children: (
                   <div style={{ paddingTop: 8 }}>
                     {branch.rules.map((rule) => (
                       <div key={rule.id} style={{ marginBottom: 12, background: '#fff', border: '1px solid #eee', borderRadius: 8, padding: 12 }}>
@@ -265,12 +259,12 @@ export default function RepositoryDetailPage({ repoId: propRepoId }: { repoId?: 
                       </div>
                     ))}
                   </div>
-                </Collapse.Panel>
-              ))}
-            </Collapse>
+                )
+              }))}
+            />
           </div>
         )
-
+/*
         const branchesContent = (
           <div className="bg-white rounded-lg p-6" style={{ width: '100%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -332,7 +326,7 @@ export default function RepositoryDetailPage({ repoId: propRepoId }: { repoId?: 
             </Modal>
           </div>
         )
-
+*/
         const initStatusContent = (
           <div className="bg-white rounded-lg p-6" style={{ width: '100%' }}>
             {initStatus?.status === 'failed' && (
@@ -372,13 +366,17 @@ export default function RepositoryDetailPage({ repoId: propRepoId }: { repoId?: 
             </div>
           </div>
         )
-
+/*
         const items = [
           { key: 'branches', label: '分支', children: branchesContent },
           { key: 'branch-rules', label: '分支保护规则', children: branchRulesContent },
           { key: 'init-status', label: '初始化', children: initStatusContent },
         ]
-
+*/
+        const items = [
+          { key: 'branch-rules', label: '分支保护规则', children: branchRulesContent },
+          { key: 'init-status', label: '初始化', children: initStatusContent },
+        ]
         return (
           <Tabs
             activeKey={activeTab}

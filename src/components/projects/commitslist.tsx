@@ -23,7 +23,54 @@ interface CommitRecord {
 }
 
 export default function CommitsList() {
-  const [commits, setCommits] = useState<CommitRecord[]>([])
+  // 初始化示例数据（确保在客户端和服务端都能正常显示）
+  const getInitialCommits = (): CommitRecord[] => [
+    {
+      id: '1',
+      submitter: 'linjj',
+      branch: 'feature/login',
+      desc: '登录功能开发完成，包含用户验证、记住密码等功能',
+      commitId: 'A1B2C3',
+      pullUrl: 'https://github.com/example/repo/pull/123',
+      status: 'pending',
+      createdAt: '2025-10-15 14:30:00'
+    },
+    {
+      id: '2',
+      submitter: 'tom',
+      branch: 'feature/payment',
+      desc: '2.1.X应用服务及日常优化合并dev',
+      commitId: 'D4E5F6',
+      pullUrl: 'https://github.com/example/repo/pull/124',
+      status: 'approved',
+      reviewer: 'miao',
+      createdAt: '2025-10-14 16:20:00'
+    },
+    {
+      id: '3',
+      submitter: 'jerry',
+      branch: 'hotfix/security',
+      desc: '修复安全漏洞',
+      commitId: 'G7H8I9',
+      pullUrl: 'https://github.com/example/repo/pull/125',
+      status: 'rejected',
+      reviewer: 'miao',
+      createdAt: '2025-10-13 09:15:00'
+    },
+    {
+      id: '4',
+      submitter: 'jerry',
+      branch: 'feature/dashboard',
+      desc: '2.1.X应用服务及日常优化合并dev',
+      commitId: 'J1K2L3',
+      pullUrl: 'https://github.com/example/repo/pull/126',
+      status: 'rejected',
+      reviewer: 'miao',
+      createdAt: '2025-10-12 11:45:00'
+    }
+  ]
+
+  const [commits, setCommits] = useState<CommitRecord[]>(getInitialCommits())
   const [showRejectModal, setShowRejectModal] = useState<CommitRecord | null>(null)
   const [rejectReason, setRejectReason] = useState('')
 
@@ -31,63 +78,23 @@ export default function CommitsList() {
   useEffect(() => {
     const loadCommits = () => {
       try {
-        const raw = typeof window !== 'undefined' ? localStorage.getItem('omni-commits') : null
+        // 确保在客户端环境中运行
+        if (typeof window === 'undefined') return
+        
+        const raw = localStorage.getItem('omni-commits')
         if (raw) {
           const data = JSON.parse(raw) as CommitRecord[]
-          setCommits(Array.isArray(data) ? data : [])
+          setCommits(Array.isArray(data) ? data : getInitialCommits())
         } else {
           // 初始化示例数据
-          const initialCommits: CommitRecord[] = [
-            {
-              id: '1',
-              submitter: 'linjj',
-              branch: 'feature/login',
-              desc: '登录功能开发完成，包含用户验证、记住密码等功能',
-              commitId: 'A1B2C3',
-              pullUrl: 'https://github.com/example/repo/pull/123',
-              status: 'pending',
-              createdAt: '2025-10-15 14:30:00'
-            },
-            {
-              id: '2',
-              submitter: 'tom',
-              branch: 'feature/payment',
-              desc: '2.1.X应用服务及日常优化合并dev',
-              commitId: 'D4E5F6',
-              pullUrl: 'https://github.com/example/repo/pull/124',
-              status: 'approved',
-              reviewer: 'miao',
-              createdAt: '2025-10-14 16:20:00'
-            },
-            {
-              id: '3',
-              submitter: 'jerry',
-              branch: 'hotfix/security',
-              desc: '修复安全漏洞',
-              commitId: 'G7H8I9',
-              pullUrl: 'https://github.com/example/repo/pull/125',
-              status: 'rejected',
-              reviewer: 'miao',
-              createdAt: '2025-10-13 09:15:00'
-            },
-            {
-              id: '4',
-              submitter: 'jerry',
-              branch: 'feature/dashboard',
-              desc: '2.1.X应用服务及日常优化合并dev',
-              commitId: 'J1K2L3',
-              pullUrl: 'https://github.com/example/repo/pull/126',
-              status: 'rejected',
-              reviewer: 'miao',
-              createdAt: '2025-10-12 11:45:00'
-            }
-          ]
+          const initialCommits = getInitialCommits()
           setCommits(initialCommits)
           localStorage.setItem('omni-commits', JSON.stringify(initialCommits))
         }
       } catch (error) {
         console.error('读取commit数据失败:', error)
-        setCommits([])
+        // 出错时使用默认数据
+        setCommits(getInitialCommits())
       }
     }
 
