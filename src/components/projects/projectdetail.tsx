@@ -1,17 +1,20 @@
 "use client"
 import React, { useEffect, useMemo, useState } from 'react'
-import { Card, Button as AntButton, Drawer, Form, Select as AntSelect, Input, Space, Tag, DatePicker, Checkbox, Tabs, Modal, message, Table as AntTable, Popconfirm } from 'antd'
-import { DeleteOutlined, CheckOutlined, MergeOutlined, ThunderboltOutlined, UndoOutlined, CopyOutlined } from '@ant-design/icons'
-import type { ColumnsType } from 'antd/es/table'
+import { Card, Button as AntButton, Drawer, Form, Select as AntSelect, Input, Space, Tag, DatePicker, Checkbox, Modal, message, Tabs, Table as AntTable, Popconfirm, Descriptions, Typography } from 'antd'
+import dayjs from 'dayjs'
+import { DeleteOutlined, ThunderboltOutlined, ReloadOutlined, EyeOutlined, RollbackOutlined } from '@ant-design/icons'
+import { getDeployRecordsMock } from './deployrecords.mock'
 
 /**
- * 这段代码实现了“项目详情”原型页：顶部项目信息 + 环境卡片列表 + 规划部署
- * 代码说明：环境卡片展示当前生效分支、功能说明、生效时间范围与状态。
- * 修改原因：满足 docs/定时发布.md 的项目详情需求。
+ * 这段代码实现了"项目详情"原型页：顶部项目信息 + 环境卡片列表 + 规划部署 + 部署记录
+ * 代码说明：环境卡片展示当前生效分支、功能说明、生效时间范围与状态。部署记录Tab展示两级表格和详情Drawer。
+ * 修改原因：满足 docs/定时发布.md 的项目详情需求，并在项目详情页中集成部署记录功能。
  */
 
+const { Text } = Typography
+
 type Env = 'stg' | 'prod'
-type BranchStatus = 'active' | 'testing' | 'completed' | 'merged' | 'rollback'
+type BranchStatus = 'testing' | 'active'
 
 interface BranchBind { 
   repo: string; 
@@ -21,23 +24,47 @@ interface BranchBind {
   end?: string; 
   isDefault?: boolean;
   status?: BranchStatus;
-  testCompletedAt?: string;
-  mergedAt?: string;
   actualExpiredAt?: string;  // 实际失效时间
 }
 
 interface EnvBind { env: Env; binds: BranchBind[] }
 
-interface CommitRecord {
-  id: string;
-  submitter: string;
-  branch: string;
-  desc: string;
-  commitId: string;
-  pullUrl: string;
-  status: 'pending' | 'approved' | 'rejected';
-  reviewer?: string;
-  createdAt: string;
+// 部署记录相关接口（与独立页面保持一致）
+interface PodRecord {
+  id: string
+  name: string
+  status: 'running' | 'pending' | 'failed' | 'terminated'
+  node: string
+  restartCount: number
+  createdAt: string
+}
+
+interface ReplicaSetRecord {
+  id: string
+  name: string
+  createdAt: string
+  podStatus: {
+    running: number
+    failed: number
+    terminated: number
+  }
+  uptime: string
+  isCurrent: boolean
+  pods: PodRecord[]
+}
+
+interface DeployRecord {
+  id: string
+  deployId: string
+  commit: {
+    hash: string
+    author: string
+  }
+  deployTime: string
+  status: 'success' | 'failed' | 'pending' | 'cancelled'
+  duration: string
+  environment: 'stg' | 'prod'
+  replicaSets: ReplicaSetRecord[]
 }
 
 type HasFormat = { format: (fmt: string) => string }
@@ -49,14 +76,15 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
   const [showEdit, setShowEdit] = useState<EnvBind | null>(null)
   const [form] = Form.useForm()
   
-  // 新增状态管理
-  const [activeTab, setActiveTab] = useState('deployment')
-  const [commits, setCommits] = useState<CommitRecord[]>([])
-  const [showMergeModal, setShowMergeModal] = useState<{ branch: BranchBind; env: Env } | null>(null)
+  // 状态管理
   const [showImmediateModal, setShowImmediateModal] = useState<{ branch: BranchBind; env: Env } | null>(null)
-  const [showDeploySpecialModal, setShowDeploySpecialModal] = useState<Env | null>(null)
-  const [mergeForm] = Form.useForm()
-  const [generatedCommit, setGeneratedCommit] = useState<{ commitId: string; pullUrl: string } | null>(null)
+  const [activeTab, setActiveTab] = useState('deployment')  // 新增Tab状态
+  
+  // 部署记录相关状态
+  const [deployGroups, setDeployGroups] = useState<DeployRecord[]>([])
+  const [showDeployDetail, setShowDeployDetail] = useState<DeployRecord | null>(null)
+  const [expandedReplicaSetId, setExpandedReplicaSetId] = useState<string | null>(null)
+  const [showPodLogs, setShowPodLogs] = useState<PodRecord | null>(null)
 
   // 仓库与分支：仓库来自 projects 列表（localStorage），分支提供基础候选
   const repoChoices = choices
@@ -68,26 +96,27 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     return base
   }, [choices])
 
+  // 部署记录mock数据来源统一（顶部已import）
+
   // 根据仓库地址生成mock环境绑定数据（只mock分支信息）
   const buildDemoEnvs = (repoUrl: string): EnvBind[] => ([
     {
       env: 'stg',
       binds: [
-        { repo: repoUrl, branch: 'develop', desc: '2.1.X应用服务及日常优化合并dev', start: '2025-09-01 10:30', end: '2025-09-31 18:00', status: 'testing' },
-        { repo: repoUrl, branch: 'feature/login', desc: '登录功能', start: '2025-09-04 14:20', end: '2025-12-31 18:00', status: 'testing' },
-        { repo: repoUrl, branch: 'feature/payment', desc: 'CDN重构相关', start: '2025-09-05 09:00', end: '2025-12-31 18:00', status: 'completed', testCompletedAt: '2025-09-25 16:30' },
-        { repo: repoUrl, branch: 'feature/dashboard', desc: '仪表盘功能优化', start: '2025-09-03 09:00', end: '2025-12-31 18:00', status: 'completed', testCompletedAt: '2025-10-12 10:00' },
-        { repo: repoUrl, branch: 'feature/user-profile', desc: '用户资料管理', start: '2025-08-20 10:00', end: '2025-09-01 18:00', status: 'merged', mergedAt: '2025-09-01 16:20' },
-        { repo: repoUrl, branch: 'hotfix/bug-fix', desc: '修复关键bug', start: '2025-08-25 14:00', end: '2025-08-30 18:00', status: 'merged', mergedAt: '2025-08-30 15:45' },
+        { repo: repoUrl, branch: 'main', desc: '当前稳定版本', start: '2025-01-01 09:00', status: 'active' },
+        { repo: repoUrl, branch: 'develop', desc: '2.1.X应用服务及日常优化合并dev', start: '2025-10-20 10:30', status: 'testing' },
+        { repo: repoUrl, branch: 'feature/login', desc: '登录功能优化', start: '2025-09-15 14:20', status: 'testing' },
+        { repo: repoUrl, branch: 'feature/payment', desc: 'CDN重构相关', start: '2025-10-01 09:00', status: 'testing' },
+        { repo: repoUrl, branch: 'feature/dashboard', desc: '仪表板界面改版', start: '2025-09-10 16:00', status: 'testing' },
       ],
     },
-    {
-      env: 'prod',
-      binds: [
-        { repo: repoUrl, branch: 'main', desc: '稳定版本', start: '2025-09-15 09:00', isDefault: true, status: 'testing' }, 
-        { repo: repoUrl, branch: 'release/2.0.0', desc: '2.0.0 版本', start: '2025-01-01 16:30', end: '2025-12-31 23:59', status: 'testing' }, 
-      ],
-    },
+    // {
+    //   env: 'prod',
+    //   binds: [
+    //     { repo: repoUrl, branch: 'main', desc: '稳定版本', start: '2025-09-15 09:00', status: 'testing' }, 
+    //     { repo: repoUrl, branch: 'release/2.0.0', desc: '2.0.0 版本', start: '2025-01-01 16:30', end: '2025-12-31 23:59', status: 'testing' }, 
+    //   ],
+    // },
   ])
 
   // 读取 Webhook 机器人（供多选关联）
@@ -168,22 +197,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
       
       setEnvs(prev => prev.map(env => ({
         ...env,
-        binds: env.binds.map(bind => {
-          // 检查分支是否到达失效时间
-          if (bind.end && bind.status !== 'merged' && bind.status !== 'completed') {
-            const endTime = new Date(bind.end)
-            if (endTime.getTime() <= now.getTime()) {
-              // 分支到达失效时间，记录实际失效时间
-              console.log(`分支 ${bind.branch} 已到达失效时间，实际失效时间: ${nowStr}`)
-              return { 
-                ...bind, 
-                actualExpiredAt: nowStr,  // 记录实际失效时间
-                status: 'completed' as const  // 状态改为completed
-              }
-            }
-          }
-          return bind
-        })
+        binds: env.binds
       })))
     }
 
@@ -196,45 +210,92 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     return () => clearInterval(interval)
   }, [])
 
-  // 监听分支状态更新（来自commit列表的拒绝操作）
+  // 加载部署记录数据
   useEffect(() => {
-    const handleBranchStatusUpdate = (e: StorageEvent) => {
-      if (e.key === 'omni-branch-status-update' && e.newValue) {
-        try {
-          const update = JSON.parse(e.newValue) as { action: string; branch: string; timestamp: number }
-          
-          if (update.action === 'reject') {
-            // 拒绝后将分支状态改回completed，并设置失效时间确保不在生效中显示
-            const now = new Date().toLocaleString('sv-SE').replace('T', ' ').substring(0, 19)
-            setEnvs(prev => prev.map(env => ({
-              ...env,
-              binds: env.binds.map(bind => 
-                bind.branch === update.branch 
-                  ? { 
-                      ...bind, 
-                      status: 'completed' as const,
-                      actualExpiredAt: now  // 记录实际失效时间
-                    }
-                  : bind
-              )
-            })))
-          }
-        } catch (error) {
-          console.error('处理分支状态更新失败:', error)
-        }
-      }
-    }
-
-    window.addEventListener('storage', handleBranchStatusUpdate)
-    return () => window.removeEventListener('storage', handleBranchStatusUpdate)
+    setDeployGroups(getDeployRecordsMock())
   }, [])
+
+  // 部署记录相关函数（与独立页面保持一致）
+  const getDeployStatusTag = (status: string) => {
+    const statusConfig = {
+      success: { color: 'success', text: '✅ 成功' },
+      failed: { color: 'error', text: '❌ 失败' },
+      pending: { color: 'processing', text: '🔄 部署中' },
+      cancelled: { color: 'default', text: '⏹️ 已取消' }
+    }
+    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.cancelled
+    return <Tag color={config.color}>{config.text}</Tag>
+  }
+
+  const getPodStatusTag = (status: string) => {
+    const statusConfig = {
+      running: { color: 'success', text: 'Running' },
+      pending: { color: 'processing', text: 'Pending' },
+      failed: { color: 'error', text: 'Failed' },
+      terminated: { color: 'default', text: 'Terminated' }
+    }
+    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.terminated
+    return <Tag color={config.color}>{config.text}</Tag>
+  }
+
+  const handleRedeploy = (deployId: string) => {
+    setDeployGroups(prev => prev.map(deploy => 
+      deploy.id === deployId 
+        ? { ...deploy, status: 'pending' as const }
+        : deploy
+    ))
+    message.success('正在重新部署...')
+    
+    setTimeout(() => {
+      setDeployGroups(prev => prev.map(deploy => 
+        deploy.id === deployId 
+          ? { ...deploy, status: 'success' as const, duration: '2m30s' }
+          : deploy
+      ))
+      message.success('重新部署完成')
+    }, 3000)
+  }
+
+  const handleRollback = (deployId: string, targetImage: string) => {
+    message.success(`正在回滚到 ${targetImage}...`)
+    setTimeout(() => {
+      message.success('回滚完成')
+    }, 2000)
+  }
+
+  const handleViewPodLogs = (pod: PodRecord) => {
+    setShowPodLogs(pod)
+  }
+
+  const showDeployDetails = (deploy: DeployRecord) => {
+    setShowDeployDetail(deploy)
+    setExpandedReplicaSetId(null)
+  }
+
+  const toggleReplicaSetDetails = (replicaSetId: string) => {
+    setExpandedReplicaSetId(prev => prev === replicaSetId ? null : replicaSetId)
+  }
+
+
+  // 部署记录：状态标签与摘要
+  const renderPodStatusSummary = (podStatus: ReplicaSetRecord['podStatus']) => {
+    const { running, failed, terminated } = podStatus
+    const total = running + failed + terminated
+    if (total === 0) return <Text type="secondary">无Pod</Text>
+    return (
+      <Space size={4}>
+        {running > 0 && <Text type="success">{running} running</Text>}
+        {failed > 0 && <Text type="danger">{failed} failed</Text>}
+        {terminated > 0 && <Text type="secondary">{terminated} terminated</Text>}
+      </Space>
+    )
+  }
+
 
   const statusOf = (e: EnvBind) => {
     if (!e.binds || e.binds.length === 0) return '待生效'
-    const hasActive = e.binds.some(b => !b.end)
-    const allEnded = e.binds.every(b => !!b.end)
+    const hasActive = e.binds.some(b => b.status === 'active')
     if (hasActive) return '运行中'
-    if (allEnded) return '未运行'
     return '待生效'
   }
 
@@ -243,39 +304,35 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     // 预填充：将 start/end 映射为 range（不做严格 dayjs 转换，保持原型轻量）
     // 注意：RangePicker 期望接收 dayjs 对象，原型不引入 dayjs，避免传 string 触发 isValid 报错
     // 因此编辑态不预填 range，保留为 undefined，让用户重新选择时间段
-    const bindsWithRange = (e.binds || []).map(b => ({
+    const bindsWithStartTime = (e.binds || []).map(b => ({
       ...b,
-      isDefault: b.isDefault ?? (!b.start && !b.end),
-      range: undefined
+      startTime: b.start ? dayjs(b.start) : undefined
     }))
-    form.setFieldsValue({ env: e.env, binds: bindsWithRange.length ? bindsWithRange : [{ branch: '', desc: '', range: undefined }] })
+    form.setFieldsValue({ env: e.env, binds: bindsWithStartTime.length ? bindsWithStartTime : [{ branch: '', desc: '', startTime: undefined }] })
   }
 
   const onSave = async () => {
-    const v = await form.validateFields() as { env: Env; binds: Array<BranchBind & { range?: [unknown, unknown]; robotIds?: string[] }> }
+    const v = await form.validateFields() as { env: Env; binds: Array<BranchBind & { startTime?: unknown; robotIds?: string[] }> }
     const normalized: Array<BranchBind & { robotIds?: string[] }> = (v.binds || []).map((b) => {
-      let start: string | undefined = b.start
-      let end: string | undefined = b.end
-      if (b.range) {
-        const [s, e] = b.range
-        if (s && typeof s === 'object' && 'format' in s && typeof (s as HasFormat).format === 'function') {
-          start = (s as HasFormat).format('YYYY-MM-DD HH:mm')
-        } else if (s != null) {
-          start = String(s)
-        }
-        if (e && typeof e === 'object' && 'format' in e && typeof (e as HasFormat).format === 'function') {
-          end = (e as HasFormat).format('YYYY-MM-DD HH:mm')
-        } else if (e != null) {
-          end = String(e)
+      let start: string | undefined = undefined
+      
+      // 处理新的startTime字段
+      if (b.startTime) {
+        if (dayjs.isDayjs(b.startTime)) {
+          start = b.startTime.format('YYYY-MM-DD HH:mm')
+        } else if (typeof b.startTime === 'object' && 'format' in b.startTime && typeof (b.startTime as HasFormat).format === 'function') {
+          start = (b.startTime as HasFormat).format('YYYY-MM-DD HH:mm')
+        } else if (b.startTime != null) {
+          start = String(b.startTime)
         }
       }
+      
       const result: BranchBind & { robotIds?: string[] } = {
         repo: meta.repo || repoChoices[0], // 使用项目默认仓库
         branch: b.branch,
-        isDefault: b.isDefault,
-        desc: b.isDefault ? undefined : b.desc,
-        start: b.isDefault ? undefined : start,
-        end: b.isDefault ? undefined : end,
+        desc: b.desc,
+        start: start,
+        status: 'testing'  // 新规划的分支默认为testing状态
       }
       if (Array.isArray(b.robotIds)) result.robotIds = b.robotIds
       return result
@@ -292,99 +349,6 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     } catch {}
   }
 
-  // 新增功能函数
-  const handleTestComplete = (branch: BranchBind, env: Env) => {
-    // 如果分支已经是completed状态，不执行任何操作
-    if (branch.status === 'completed') {
-      return
-    }
-    
-    const now = new Date().toLocaleString('sv-SE').replace('T', ' ').substring(0, 19)
-    setEnvs(prev => prev.map(e => 
-      e.env === env 
-        ? { ...e, binds: e.binds.map(b => 
-            b.branch === branch.branch && b.repo === branch.repo 
-              ? { ...b, status: 'completed', testCompletedAt: now }
-              : b
-          )}
-        : e
-    ))
-    message.success(`分支 ${branch.branch} 已标记为测试完成`)
-  }
-
-  const handleMergeCode = (branch: BranchBind, env: Env) => {
-    setShowMergeModal({ branch, env })
-    mergeForm.setFieldsValue({ desc: branch.desc || '' })
-  }
-
-  const generateCommitLink = async () => {
-    if (!showMergeModal) return
-    
-    try {
-      const values = await mergeForm.validateFields() as { desc: string }
-      
-      // 生成模拟的commit信息
-      const commitId = Math.random().toString(36).substring(2, 8).toUpperCase()
-      const pullUrl = `https://github.com/example/repo/pull/${Math.floor(Math.random() * 1000) + 1}`
-      
-      setGeneratedCommit({ commitId, pullUrl })
-      message.success('Commit链接已生成')
-    } catch (error) {
-      console.error('生成链接失败:', error)
-    }
-  }
-
-  const confirmMergeCode = async () => {
-    if (!showMergeModal || !generatedCommit) return
-    
-    try {
-      const values = await mergeForm.validateFields() as { desc: string }
-      const { branch, env } = showMergeModal
-      const now = new Date().toLocaleString('sv-SE').replace('T', ' ').substring(0, 19)
-      
-      // 创建commit记录
-      const newCommit: CommitRecord = {
-        id: String(Date.now()),
-        submitter: '当前用户',
-        branch: branch.branch,
-        desc: values.desc,
-        commitId: generatedCommit.commitId,
-        pullUrl: generatedCommit.pullUrl,
-        status: 'pending',
-        createdAt: now
-      }
-      
-      setCommits(prev => [newCommit, ...prev])
-      
-      // 同步到localStorage供commit列表页面使用
-      try {
-        const existingCommits = localStorage.getItem('omni-commits')
-        const allCommits = existingCommits ? JSON.parse(existingCommits) : []
-        const updatedCommits = [newCommit, ...allCommits]
-        localStorage.setItem('omni-commits', JSON.stringify(updatedCommits))
-      } catch (error) {
-        console.error('保存commit数据失败:', error)
-      }
-      
-      // 更新分支状态
-      setEnvs(prev => prev.map(e => 
-        e.env === env 
-          ? { ...e, binds: e.binds.map(b => 
-              b.branch === branch.branch && b.repo === branch.repo 
-                ? { ...b, status: 'merged', mergedAt: now }
-                : b
-            )}
-          : e
-      ))
-      
-      setShowMergeModal(null)
-      setGeneratedCommit(null)
-      mergeForm.resetFields()
-      message.success('代码合并请求已提交')
-    } catch (error) {
-      console.error('合并代码失败:', error)
-    }
-  }
 
   const handleImmediateEffect = (branch: BranchBind, env: Env) => {
     setShowImmediateModal({ branch, env })
@@ -401,25 +365,18 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
         ? { 
             ...e, 
             binds: e.binds.map(b => {
-              // 如果是要立即生效的分支，更新开始时间
+              // 如果是要立即生效的分支，更新开始时间并设置为active状态
               if (b.branch === branch.branch && b.repo === branch.repo) {
-                return { ...b, start: now }
+                return { ...b, start: now, status: 'active' }
               }
               
-              // 如果是当前生效的其他分支（包括dev分支），设置失效时间
-              const bindStart = b.start ? new Date(b.start) : null
-              const bindEnd = b.end ? new Date(b.end) : null
-              const nowTime = new Date(now)
-              
-              const isCurrentlyActive = !b.isDefault && 
-                bindStart && bindStart.getTime() <= nowTime.getTime() &&
-                (!bindEnd || bindEnd.getTime() > nowTime.getTime()) &&
-                b.status !== 'completed' && b.status !== 'merged' &&
+              // 如果是当前生效的其他分支，将其状态改为失效
+              const isCurrentlyActive = b.status === 'active' &&
                 !(b.branch === branch.branch && b.repo === branch.repo)  // 排除要立即生效的分支本身
               
               if (isCurrentlyActive) {
-                // 当前生效分支失效，记录实际失效时间
-                return { ...b, actualExpiredAt: now }
+                // 当前生效分支失效，记录实际失效时间，状态保持不变但记录失效时间
+                return { ...b, actualExpiredAt: now, status: 'testing' }
               }
               
               return b
@@ -432,148 +389,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     message.success(`分支 ${branch.branch} 已立即生效，其他生效分支已失效`)
   }
 
-  const handleTestRollback = (branch: BranchBind, env: Env) => {
-    const now = new Date()
-    
-    setEnvs(prev => prev.map(e => 
-      e.env === env 
-        ? { ...e, binds: e.binds.map(b => 
-            b.branch === branch.branch && b.repo === branch.repo 
-              ? (() => {
-                  // 判断分支是否还在生效时间内
-                  const startTime = b.start ? new Date(b.start) : null
-                  const endTime = b.end ? new Date(b.end) : null
-                  const isStillActive = startTime && 
-                    startTime.getTime() <= now.getTime() &&
-                    (!endTime || endTime.getTime() > now.getTime())
-                  
-                  if (isStillActive) {
-                    // 如果分支还在生效时间内，保持原有时间配置，只改变状态
-                    return { 
-                      ...b, 
-                      status: 'testing', 
-                      testCompletedAt: undefined
-                      // 保持原有的start和end时间
-                    }
-                  } else {
-                    // 如果分支不在生效时间内，清除所有时间配置
-                    return { 
-                      ...b, 
-                      status: 'testing', 
-                      testCompletedAt: undefined,
-                      start: undefined,  // 清除生效时间
-                      end: undefined     // 清除失效时间
-                    }
-                  }
-                })()
-              : b
-          )}
-        : e
-    ))
-    
-    // 根据分支是否还在生效时间内给出不同的提示
-    const startTime = branch.start ? new Date(branch.start) : null
-    const endTime = branch.end ? new Date(branch.end) : null
-    const isStillActive = startTime && 
-      startTime.getTime() <= now.getTime() &&
-      (!endTime || endTime.getTime() > now.getTime())
-    
-    if (isStillActive) {
-      message.success(`分支 ${branch.branch} 已测试回退，保持生效状态`)
-    } else {
-      message.success(`分支 ${branch.branch} 已测试回退，需要重新规划部署时间`)
-    }
-  }
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text).then(() => {
-      message.success('链接已复制到剪贴板')
-    }).catch(() => {
-      message.error('复制失败')
-    })
-  }
-
-  // 获取已测试完成的分支
-  const getCompletedBranches = () => {
-    const completed: Array<BranchBind & { env: Env }> = []
-    envs.forEach(e => {
-      e.binds.forEach(b => {
-        if (b.status === 'completed') {
-          completed.push({ ...b, env: e.env })
-        }
-      })
-    })
-    return completed
-  }
-
-  // 获取已合并的分支
-  const getMergedBranches = (env: Env) => {
-    const envData = envs.find(e => e.env === env)
-    if (!envData) return []
-    
-    return envData.binds.filter(b => b.status === 'merged')
-  }
-
-  // 部署特殊分支（STG部署dev，PROD部署master）
-  const handleDeploySpecialBranch = (env: Env) => {
-    setShowDeploySpecialModal(env)
-  }
-
-  const confirmDeploySpecialBranch = () => {
-    if (!showDeploySpecialModal || !meta.repo) return
-    
-    const env = showDeploySpecialModal
-    const now = new Date().toLocaleString('sv-SE').replace('T', ' ').substring(0, 19)
-    
-    // 根据环境确定部署的分支
-    const deployBranch = env === 'prod' ? 'master' : 'dev'
-    const deployDesc = env === 'prod' ? '生产主分支部署' : '开发分支部署'
-    
-    // 创建特殊分支绑定
-    const specialBind: BranchBind = {
-      repo: meta.repo,
-      branch: deployBranch,
-      desc: deployDesc,
-      start: now,
-      status: 'testing'  // 特殊分支部署后也是testing状态，需要走测试流程
-      // 没有end时间，表示持续生效
-    }
-    
-    setEnvs(prev => prev.map(e => 
-      e.env === env 
-        ? { 
-            ...e, 
-            binds: (() => {
-              const existingBinds = e.binds.map(b => {
-                // 如果是当前生效的分支（非默认分支且在生效时间内），设置失效时间
-                const bindStart = b.start ? new Date(b.start) : null
-                const bindEnd = b.end ? new Date(b.end) : null
-                const nowTime = new Date(now)
-                
-                const isCurrentlyActive = !b.isDefault && 
-                  bindStart && bindStart.getTime() <= nowTime.getTime() &&
-                  (!bindEnd || bindEnd.getTime() > nowTime.getTime()) &&
-                  b.status !== 'completed' && b.status !== 'merged'
-                
-                if (isCurrentlyActive) {
-                  // 当前生效分支失效，记录实际失效时间
-                  return { ...b, actualExpiredAt: now }
-                }
-                
-                return b
-              })
-              
-              // 移除现有的特殊分支（如果有），然后添加新的特殊分支
-              const withoutSpecialBranch = existingBinds.filter(b => b.branch !== deployBranch)
-              return [specialBind, ...withoutSpecialBranch]
-            })()
-          }
-        : e
-    ))
-    
-    setShowDeploySpecialModal(null)
-    message.success(`${env.toUpperCase()}环境已部署${deployBranch}分支，当前生效分支已失效`)
-  }
 
   return (
     <main style={{ padding: 24 }}>
@@ -590,9 +406,8 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
         items={[
           {
             key: 'deployment',
-            label: '环境部署',
+            label: '部署规划',
             children: (
-
       <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr', alignItems: 'stretch' }}>
         {envs.map(e => {
           const now = new Date()
@@ -613,19 +428,10 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
             
             // 获取当前生效的分支（每个仓库只取一个最新的生效分支）
             const timedActive = list
-              .filter(b => b.start && (new Date(b.start as string)).getTime() <= now.getTime())
-              .filter(b => {
-                // 检查计划失效时间
-                const planExpired = b.end && (new Date(b.end as string)).getTime() <= now.getTime()
-                // 检查实际失效时间
-                const actualExpired = b.actualExpiredAt && (new Date(b.actualExpiredAt)).getTime() <= now.getTime()
-                // 只要有一个失效时间到达就认为分支失效
-                return !planExpired && !actualExpired
-              })
-              .filter(b => b.status !== 'merged')  // 只排除已合并的分支，completed状态的分支如果未失效仍然显示
+              .filter(b => b.status === 'active')  // 只显示生效中的分支
               .sort((a, b) => (new Date(b.start as string).getTime()) - (new Date(a.start as string).getTime()))
             
-            const defaultBind = list.find(b => b.isDefault && b.status !== 'merged') // 默认分支只排除merged状态
+            const defaultBind = list.find(b => b.isDefault && (b.status === 'testing' || b.status === 'active')) // 默认分支只显示测试中和生效中状态
             
             // 每个仓库只添加一个生效分支（最新的）
             if (timedActive.length > 0) {
@@ -642,12 +448,9 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
           })
           upcomingList.sort((a, b) => (new Date(a.start as string).getTime()) - (new Date(b.start as string).getTime()))
           return (
-            <Card key={e.env} style={{ width: '100%' }} title={<Space><Tag color={e.env==='prod'?'gold':'blue'}>{e.env}</Tag><span>{statusOf(e)}</span></Space>} extra={
+            <Card key={e.env} style={{ width: '100%' }} title={<Space><Tag color="blue">{e.env}</Tag><span>{statusOf(e)}</span></Space>} extra={
               <Space>
                 <AntButton onClick={() => onOpenEdit(e)}>规划部署</AntButton>
-                <AntButton type="primary" onClick={() => handleDeploySpecialBranch(e.env)}>
-                  {e.env === 'prod' ? '部署master' : '部署dev'}
-                </AntButton>
               </Space>
             }>
               <div style={{ display: 'flex', gap: 16, alignItems: 'stretch' }}>
@@ -663,41 +466,9 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
                           <div style={{ marginBottom: 4 }}>{bind.desc || '暂无描述'}</div>
                           <div style={{ fontSize: 12, color: '#6b7280' }}>生效时间</div>
                           <div style={{ marginBottom: 8 }}>
-                            {bind.start ?? '-'} ~ {bind.end ?? '-'}
-                            {bind.actualExpiredAt && (
-                              <div style={{ fontSize: 11, color: '#ff4d4f', marginTop: 2 }}>
-                                实际失效：{bind.actualExpiredAt}
-                              </div>
-                            )}
+                            {bind.start ?? '-'}
                           </div>
                           
-                          {/* 生效中卡片操作按钮 */}
-                          {!bind.isDefault && (
-                            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                              {/* 测试完成按钮 - testing状态可点击，completed状态置灰 */}
-                              {(bind.status === 'testing' || bind.status === 'completed') && (
-                                <AntButton 
-                                  size="small" 
-                                  icon={<CheckOutlined />}
-                                  onClick={() => handleTestComplete(bind, e.env)}
-                                  disabled={bind.status === 'completed'}
-                                >
-                                  {bind.status === 'completed' ? '测试完成' : '测试完成'}
-                                </AntButton>
-                              )}
-                              
-                              {/* 合并代码按钮 - 在active、testing、completed状态时都显示，但不包括已合并状态 */}
-                              {(bind.status === 'active' || bind.status === 'testing' || bind.status === 'completed') && (
-                                <AntButton 
-                                  size="small" 
-                                  icon={<MergeOutlined />}
-                                  onClick={() => handleMergeCode(bind, e.env)}
-                                >
-                                  合并代码
-                                </AntButton>
-                              )}
-                            </div>
-                          )}
                         </>
                       ) : (
                         <div style={{ color: '#6b7280' }}>未配置生效中的分支</div>
@@ -744,56 +515,87 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
             )
           },
           {
-            key: 'completed',
-            label: '测试完成',
+            key: 'deployRecords',
+            label: '部署记录',
             children: (
-              <div style={{ padding: '16px 0' }}>
-                <div style={{ marginBottom: 16 }}>
-                  <h3 style={{ margin: 0, color: 'var(--heading)' }}>已测试完成的分支</h3>
-                  <div style={{ color: '#666', fontSize: 14 }}>以下分支已完成功能测试，可以进行代码合并或测试回退操作</div>
-                </div>
-                
-                {getCompletedBranches().length > 0 ? (
-                  <div style={{ display: 'grid', gap: 12 }}>
-                    {getCompletedBranches().map((branch, index) => (
-                      <Card key={index} size="small">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                              <Tag color={branch.env === 'prod' ? 'gold' : 'blue'}>{branch.env}</Tag>
-                              <span style={{ fontWeight: 600 }}>{branch.branch}</span>
-                            </div>
-                            <div style={{ marginBottom: 4, color: '#666' }}>{branch.desc || '暂无描述'}</div>
-                            <div style={{ fontSize: 12, color: '#999' }}>
-                              测试完成时间：{branch.testCompletedAt || '-'}
-                            </div>
-                          </div>
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <AntButton 
-                              size="small" 
-                              type="primary"
-                              icon={<MergeOutlined />}
-                              onClick={() => handleMergeCode(branch, branch.env)}
-                            >
-                              合并代码
-                            </AntButton>
-                            <AntButton 
-                              size="small" 
-                              icon={<UndoOutlined />}
-                              onClick={() => handleTestRollback(branch, branch.env)}
-                            >
-                              测试回退
-                            </AntButton>
-                          </div>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
-                    暂无已测试完成的分支
-                  </div>
-                )}
+              <div>
+                <AntTable<DeployRecord>
+                  rowKey="id"
+                  dataSource={deployGroups}
+                  
+                  columns={[
+                    {
+                      title: '部署ID',
+                      dataIndex: 'deployId',
+                      key: 'deployId',
+                      width: 200,
+                      render: (deployId: string, record: DeployRecord) => (
+                        <Space>
+                          <AntButton type="link" style={{ padding: 0 }} onClick={() => showDeployDetails(record)}>
+                            <Text strong>{deployId}</Text>
+                          </AntButton>
+                          <Tag color={record.environment === 'stg' ? 'blue' : 'gold'}>
+                            {record.environment.toUpperCase()}
+                          </Tag>
+                        </Space>
+                      )
+                    },
+                    {
+                      title: 'Commit ID',
+                      key: 'commit',
+                      width: 220,
+                      render: (_, record: DeployRecord) => (
+                        <Text code>{record.commit.hash}</Text>
+                      )
+                    },
+                    {
+                      title: '提交人',
+                      dataIndex: ['commit', 'author'],
+                      key: 'author',
+                      width: 100
+                    },
+                    {
+                      title: '部署时间',
+                      dataIndex: 'deployTime',
+                      key: 'deployTime',
+                      width: 160
+                    },
+                    {
+                      title: '状态',
+                      dataIndex: 'status',
+                      key: 'status',
+                      width: 120,
+                      render: (status: string) => getDeployStatusTag(status)
+                    },
+                    {
+                      title: '持续时间',
+                      dataIndex: 'duration',
+                      key: 'duration',
+                      width: 120
+                    },
+                    {
+                      title: '最近一次更新时间',
+                      dataIndex: 'deployTime',
+                      key: 'updatedAt',
+                      width: 180
+                    },
+                    {
+                      title: '操作',
+                      key: 'actions',
+                      width: 180,
+                      render: (_, record: DeployRecord) => (
+                        <Space>
+                          <AntButton size="small" icon={<ReloadOutlined />} onClick={() => handleRedeploy(record.id)}>
+                            重新部署
+                          </AntButton>
+                          <AntButton size="small" icon={<EyeOutlined />} onClick={() => showDeployDetails(record)}>
+                            查看
+                          </AntButton>
+                        </Space>
+                      )
+                    }
+                  ]}
+                />
               </div>
             )
           }
@@ -832,34 +634,20 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
                   const allBranches = repoBranches[defaultRepo] || []
                   const unavailableBranches = new Set<string>()
                   
-                  // 收集已合并的分支
-                  envs.forEach(env => {
-                    env.binds.forEach(bind => {
-                      if (bind.status === 'merged') {
-                        unavailableBranches.add(bind.branch)
-                      }
-                    })
-                  })
-                  
                                            // 当前正在编辑的分支不受限制
                          const currentBranch = form.getFieldValue(['binds', restField.name, 'branch'])
                          const availableBranches = allBranches.filter(b => 
                            // 排除特殊分支（dev和master分支不可在规划部署中选择）
-                           b !== 'dev' && b !== 'master' && 
-                           (!unavailableBranches.has(b) || b === currentBranch)
+                    b !== 'dev' && b !== 'master'
                          )
                   
                   const branchOptions = availableBranches.map(b => ({ 
                     value: b, 
-                    label: unavailableBranches.has(b) && b !== currentBranch ? `${b} (已合并)` : b,
-                    disabled: unavailableBranches.has(b) && b !== currentBranch
+                    label: b
                   }))
                   
                                            return (
                            <div key={key} style={{ border: '1px solid #eee', borderRadius: 8, padding: 16 }}>
-                             <Form.Item {...restField} name={[restField.name, 'isDefault']} valuePropName="checked" style={{ marginBottom: 16 }}>
-                               <Checkbox>默认分支（无需功能与时间配置）</Checkbox>
-                             </Form.Item>
                              
                              <Form.Item shouldUpdate noStyle>
                                {({ getFieldValue }) => {
@@ -876,13 +664,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
                                    const existingBind = envData.binds.find(b => b.branch === currentBranchName)
                                    if (!existingBind || existingBind.isDefault) return false
                                    
-                                   const now = new Date()
-                                   const bindStart = existingBind.start ? new Date(existingBind.start) : null
-                                   const bindEnd = existingBind.end ? new Date(existingBind.end) : null
-                                   
-                                   return bindStart && bindStart.getTime() <= now.getTime() &&
-                                          (!bindEnd || bindEnd.getTime() > now.getTime()) &&
-                                          existingBind.status !== 'completed' && existingBind.status !== 'merged'
+                                   return existingBind.status === 'active'
                                  })()
                                  
                                  return (
@@ -890,12 +672,12 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
                                      {isCurrentlyActive && (
                                        <div style={{ background: '#fff7e6', border: '1px solid #ffd591', borderRadius: 6, padding: 12, marginBottom: 16 }}>
                                          <div style={{ color: '#fa8c16', fontWeight: 600, marginBottom: 4 }}>⚠️ 当前生效分支</div>
-                                         <div style={{ color: '#666', fontSize: 14 }}>该分支正在生效中，只能修改失效时间，其他信息不可更改</div>
+                                         <div style={{ color: '#666', fontSize: 14 }}>该分支正在生效中，其他信息不可更改</div>
                                        </div>
                                      )}
                                      
                                      {/* 第一行：分支、生效时间、关联机器人、删除图标 */}
-                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1.5fr auto', gap: 16, marginBottom: 16, alignItems: 'end' }}>
+                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 1.5fr auto', gap: 16, marginBottom: 16, alignItems: 'end' }}>
                                        <Form.Item {...restField} name={[restField.name, 'branch']} label="分支" rules={[{ required: true }]} style={{ margin: 0 }}>
                                          <AntSelect 
                                            placeholder="选择分支" 
@@ -903,14 +685,13 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
                                            disabled={!!isCurrentlyActive}  // 生效中的分支不能修改分支名
                                          />
                                        </Form.Item>
-                                       <Form.Item {...restField} name={[restField.name, 'range']} label="生效-失效时间" rules={isDefault ? [] : [{ required: true }]} style={{ margin: 0 }}>
-                                         <DatePicker.RangePicker 
-                                           disabled={isDefault ? [true, true] : isCurrentlyActive ? [true, false] : [false, false]}  // 生效中的分支只能修改失效时间
+                                       <Form.Item {...restField} name={[restField.name, 'startTime']} label="生效时间" rules={[{ required: true }]} style={{ margin: 0 }}>
+                                         <DatePicker 
+                                           disabled={!!isCurrentlyActive}  // 生效中的分支不能修改生效时间
                                            style={{ width: '100%' }} 
                                            showTime={{ format: 'HH:mm' }}
                                            format="YYYY-MM-DD HH:mm"
-                                           placeholder={['开始时间', '结束时间']}
-                                           allowEmpty={[true, true]}
+                                           placeholder="选择生效时间"
                                          />
                                        </Form.Item>
                                        <Form.Item {...restField} name={[restField.name, 'robotIds']} label="关联机器人" style={{ margin: 0 }}>
@@ -933,10 +714,10 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
                                      
                                      {/* 第二行：功能说明单独一行 */}
                                      <div>
-                                       <Form.Item {...restField} name={[restField.name, 'desc']} label="功能说明" rules={isDefault ? [] : [{ required: true }]} style={{ margin: 0 }}>
+                                       <Form.Item {...restField} name={[restField.name, 'desc']} label="功能说明" rules={[{ required: true }]} style={{ margin: 0 }}>
                                          <Input 
                                            placeholder="本次分支功能点说明" 
-                                           disabled={isDefault || !!isCurrentlyActive}  // 生效中的分支不能修改功能说明
+                                           disabled={!!isCurrentlyActive}  // 生效中的分支不能修改功能说明
                                          />
                                        </Form.Item>
                                      </div>
@@ -947,7 +728,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
                            </div>
                          )
                 })}
-                <AntButton type="dashed" onClick={() => add({ branch: '', desc: '', range: undefined })} block>
+                <AntButton type="dashed" onClick={() => add({ branch: '', desc: '', startTime: undefined })} block>
                   + 增加一个分支
                 </AntButton>
               </div>
@@ -956,96 +737,6 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
         </Form>
       </Drawer>
 
-      {/* 合并代码Modal */}
-      <Modal
-        title="合并代码"
-        open={!!showMergeModal}
-        onCancel={() => {
-          setShowMergeModal(null)
-          setGeneratedCommit(null)
-          mergeForm.resetFields()
-        }}
-        footer={[
-          <AntButton key="cancel" onClick={() => {
-            setShowMergeModal(null)
-            setGeneratedCommit(null)
-            mergeForm.resetFields()
-          }}>
-            取消
-          </AntButton>,
-          !generatedCommit ? (
-            <AntButton key="generate" type="primary" onClick={generateCommitLink}>
-              生成Commit链接
-            </AntButton>
-          ) : (
-            <AntButton key="confirm" type="primary" onClick={confirmMergeCode}>
-              确认合并
-            </AntButton>
-          )
-        ]}
-      >
-        <div style={{ marginBottom: 16 }}>
-          <p>合并代码将把该分支的代码合并到develop分支，请确认代码已完成功能测试</p>
-          {showMergeModal && (
-            <div style={{ background: '#f5f5f5', padding: 12, borderRadius: 6, marginBottom: 16 }}>
-              <div><strong>分支：</strong>{showMergeModal.branch.branch}</div>
-              <div><strong>环境：</strong>{showMergeModal.env}</div>
-            </div>
-          )}
-        </div>
-        
-        <Form form={mergeForm} layout="vertical">
-          <Form.Item 
-            name="desc" 
-            label="功能说明" 
-            rules={[{ required: true, message: '请输入功能说明' }]}
-          >
-            <Input.TextArea rows={3} placeholder="请描述本次合并的功能点" />
-          </Form.Item>
-        </Form>
-
-        {/* 生成的Commit链接 */}
-        {generatedCommit && (
-          <div style={{ marginTop: 16, padding: 16, background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 6 }}>
-            <div style={{ marginBottom: 12, fontWeight: 600, color: '#52c41a' }}>✅ Commit链接已生成</div>
-            
-            <div style={{ marginBottom: 8 }}>
-              <span style={{ fontWeight: 600 }}>Commit ID：</span>
-              <span style={{ fontFamily: 'monospace', background: '#fff', padding: '2px 6px', borderRadius: 4, marginRight: 8 }}>
-                {generatedCommit.commitId}
-              </span>
-              <AntButton 
-                type="text" 
-                size="small" 
-                icon={<CopyOutlined />}
-                onClick={() => copyToClipboard(generatedCommit.commitId)}
-                title="复制Commit ID"
-              />
-            </div>
-            
-            <div style={{ marginBottom: 8 }}>
-              <span style={{ fontWeight: 600 }}>GitHub Pull链接：</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                <a 
-                  href={generatedCommit.pullUrl} 
-                  target="_blank" 
-                  rel="noreferrer"
-                  style={{ flex: 1, wordBreak: 'break-all', fontSize: 12 }}
-                >
-                  {generatedCommit.pullUrl}
-                </a>
-                <AntButton 
-                  type="text" 
-                  size="small" 
-                  icon={<CopyOutlined />}
-                  onClick={() => copyToClipboard(generatedCommit.pullUrl)}
-                  title="复制链接"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-      </Modal>
 
       {/* 立即生效Modal */}
       <Modal
@@ -1068,54 +759,83 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
         </div>
       </Modal>
 
-      {/* 部署特殊分支 Modal */}
-      <Modal
-        title={showDeploySpecialModal === 'prod' ? '部署master分支' : '部署dev分支'}
-        open={!!showDeploySpecialModal}
-        onCancel={() => setShowDeploySpecialModal(null)}
-        onOk={confirmDeploySpecialBranch}
-        okText="确认部署"
-        cancelText="取消"
+      {/* 部署记录详情Drawer（点击部署ID打开）：仅 ReplicaSet + Pod 展开 */}
+      <Drawer
+        title={`部署详情 - ${showDeployDetail?.deployId ?? ''}`}
+        open={!!showDeployDetail}
+        onClose={() => setShowDeployDetail(null)}
+        width={900}
       >
-        <div>
-          <p>
-            确认部署吗？部署后{showDeploySpecialModal?.toUpperCase()}环境将部署
-            {showDeploySpecialModal === 'prod' ? '最新master分支' : 'dev分支'}
-          </p>
-          
-          {showDeploySpecialModal && (
-            <div>
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontWeight: 600, marginBottom: 8 }}>已经merge的分支和功能：</div>
-                {getMergedBranches(showDeploySpecialModal).length > 0 ? (
-                  <div style={{ background: '#f5f5f5', padding: 12, borderRadius: 6 }}>
-                    {getMergedBranches(showDeploySpecialModal).map((branch, index) => (
-                      <div key={index} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: index < getMergedBranches(showDeploySpecialModal).length - 1 ? '1px solid #e0e0e0' : 'none' }}>
-                        <div style={{ fontWeight: 600, color: '#1677ff' }}>{branch.branch}</div>
-                        <div style={{ color: '#666', fontSize: 14 }}>{branch.desc || '暂无描述'}</div>
-                        {branch.mergedAt && (
-                          <div style={{ color: '#999', fontSize: 12 }}>合并时间：{branch.mergedAt}</div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ color: '#999', fontStyle: 'italic' }}>暂无已合并的分支</div>
-                )}
-              </div>
-              
-              <div style={{ background: '#e6f7ff', padding: 12, borderRadius: 6, border: '1px solid #91d5ff' }}>
-                <div style={{ color: '#1677ff', fontWeight: 600 }}>部署后效果：</div>
-                <div style={{ color: '#666', fontSize: 14 }}>
-                  • 生效分支：{showDeploySpecialModal === 'prod' ? 'master' : 'dev'}<br/>
-                  • 生效时间：立即生效<br/>
-                  • 失效时间：无（持续生效）
-                </div>
-              </div>
+        {showDeployDetail && (
+          <div>
+            <div style={{ marginBottom: 24 }}>
+              <h3 style={{ marginBottom: 16 }}>ReplicaSet 信息</h3>
+              <AntTable
+                size="small"
+                pagination={false}
+                dataSource={showDeployDetail.replicaSets}
+                rowKey="id"
+                columns={[
+                  { title: 'ReplicaSet', dataIndex: 'name', key: 'name', width: 240, render: (name: string) => <Text code>{name}</Text> },
+                  { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 140 },
+                  { title: 'Pod 状态', dataIndex: 'podStatus', key: 'podStatus', width: 220, render: (podStatus: ReplicaSetRecord['podStatus']) => renderPodStatusSummary(podStatus) },
+                  { title: '存活时间', dataIndex: 'uptime', key: 'uptime', width: 120 },
+                ]}
+                expandable={{
+                  expandedRowRender: (replicaSet: ReplicaSetRecord) => (
+                    <div style={{ padding: '8px 0' }}>
+                      {replicaSet.pods.length === 0 ? (
+                        <Text type="secondary">无运行中的Pod</Text>
+                      ) : (
+                        <AntTable
+                          size="small"
+                          pagination={false}
+                          dataSource={replicaSet.pods}
+                          rowKey="id"
+                          columns={[
+                            { title: 'Pod 名称', dataIndex: 'name', key: 'name', render: (name: string) => <Text code>{name}</Text> },
+                            { title: '状态', dataIndex: 'status', key: 'status', render: (status: string) => getPodStatusTag(status) },
+                            { title: '节点', dataIndex: 'node', key: 'node' },
+                            { title: '重启次数', dataIndex: 'restartCount', key: 'restartCount' },
+                          ]}
+                        />
+                      )}
+                    </div>
+                  ),
+                  rowExpandable: (record) => record.pods.length > 0,
+                }}
+              />
             </div>
-          )}
-        </div>
-      </Modal>
+          </div>
+        )}
+      </Drawer>
+
+      {/* Pod日志Drawer 保持不变 */}
+      <Drawer
+        title={`Pod 日志 - ${showPodLogs?.name}`}
+        open={!!showPodLogs}
+        onClose={() => setShowPodLogs(null)}
+        width={800}
+      >
+        {showPodLogs && (
+          <div>
+            <Descriptions size="small" column={2} style={{ marginBottom: 16 }}>
+              <Descriptions.Item label="Pod名称">{showPodLogs.name}</Descriptions.Item>
+              <Descriptions.Item label="状态">{getPodStatusTag(showPodLogs.status)}</Descriptions.Item>
+              <Descriptions.Item label="节点">{showPodLogs.node}</Descriptions.Item>
+              <Descriptions.Item label="重启次数">{showPodLogs.restartCount}</Descriptions.Item>
+            </Descriptions>
+            <div style={{ background: '#000', color: '#00ff00', padding: 16, borderRadius: 6, fontFamily: 'monospace', fontSize: 12, height: 400, overflow: 'auto' }}>
+              <div>2025-09-05 15:32:00 [INFO] Pod starting...</div>
+              <div>2025-09-05 15:32:05 [INFO] Container image pulled successfully</div>
+              <div>2025-09-05 15:32:10 [INFO] Container started</div>
+              <div>2025-09-05 15:32:15 [INFO] Health check passed</div>
+              <div>2025-09-05 15:32:20 [INFO] Pod ready</div>
+            </div>
+          </div>
+        )}
+      </Drawer>
+
     </main>
   )
 }

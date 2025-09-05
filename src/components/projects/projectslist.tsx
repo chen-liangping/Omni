@@ -25,23 +25,23 @@ const initial: ProjectRow[] = [
   { 
     id: 'p1', 
     name: 'Doraemon', 
-    envCount: 2, 
+    envCount: 1, 
     createdAt: '2025-09-01 10:30:15',
     repo: 'https://github.com/ctw/omni-Doraemon',
     envs: [
       { name: 'stg', url: 'https://stg.doraemon.com' },
-      { name: 'prod', url: 'https://doraemon.com' }
+      // { name: 'prod', url: 'https://doraemon.com' }
     ]
   },
   { 
     id: 'p2', 
     name: 'Publisher', 
-    envCount: 2, 
+    envCount: 1, 
     createdAt: '2025-08-30 14:22:30',
     repo: 'https://github.com/ctw/omni-publisher',
     envs: [
       { name: 'stg', url: 'https://stg.publisher.com' },
-      { name: 'prod', url: 'https://publisher.com' }
+      // { name: 'prod', url: 'https://publisher.com' }
     ]
   },
 ]
@@ -266,7 +266,7 @@ export default function ProjectsList() {
       <AntTable<ProjectRow> rowKey={(r) => r.id} columns={columns} dataSource={rows} />
 
       <Modal title="新增项目" open={showAdd} onCancel={() => setShowAdd(false)} onOk={onAdd} okText="创建">
-        <Form form={form} layout="vertical" initialValues={{ envs: [{ envName: 'stg', envUrl: '' }, { envName: 'prod', envUrl: '' }], repo: '' }}>
+        <Form form={form} layout="vertical" initialValues={{ envs: [{ envName: 'stg', envUrl: '' }], repo: '' }}>
           <Form.Item name="name" label="项目名称" rules={[{ required: true }]}>
             <Input placeholder="例如 Doraemon" />
           </Form.Item>
@@ -283,7 +283,7 @@ export default function ProjectsList() {
           <Form.List name="envs">
             {(fields) => (
               <div style={{ display: 'grid', gap: 8 }}>
-                <div style={{ fontSize: 12, color: '#6b7280' }}>环境地址（必填：stg & prod）</div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>环境地址（可选：stg）</div>
                 {fields.map((field) => {
                   const nameLabel = field.name === 0 ? 'stg' : field.name === 1 ? 'prod' : 'env'
                   return (
@@ -292,13 +292,13 @@ export default function ProjectsList() {
                       <Form.Item {...field} name={[field.name, 'envName']} hidden initialValue={nameLabel}>
                         <Input />
                       </Form.Item>
-                      <Form.Item {...field} name={[field.name, 'envUrl']} label={`${nameLabel.toUpperCase()} 环境地址`} rules={[{ required: true, message: `请填写${nameLabel}环境地址` }]}> 
-                        <Input placeholder={`例如 https://${nameLabel}.example.com`} />
+                      <Form.Item {...field} name={[field.name, 'envUrl']} label={`${nameLabel.toUpperCase()} 环境地址`}> 
+                        <Input placeholder={`例如 https://${nameLabel}.example.com（可选）`} />
                       </Form.Item>
                     </div>
                   )
                 })}
-                {/* 不提供添加或移除按钮：默认仅 stg & prod，且均为必填 */}
+                {/* 不提供添加或移除按钮：默认仅 stg */}
               </div>
             )}
           </Form.List>
@@ -318,7 +318,7 @@ export default function ProjectsList() {
         okText="保存"
         cancelText="取消"
       >
-        <Form form={editForm} layout="vertical" initialValues={{ envs: [{ envName: 'stg', envUrl: '' }, { envName: 'prod', envUrl: '' }], repo: '' }}>
+        <Form form={editForm} layout="vertical" initialValues={{ envs: [{ envName: 'stg', envUrl: '' }], repo: '' }}>
           <Form.Item name="name" label="项目名称" rules={[{ required: true }]}>
             <Input placeholder="例如 Doraemon" />
           </Form.Item>
@@ -340,7 +340,7 @@ export default function ProjectsList() {
           <Form.List name="envs">
             {(fields) => (
               <div style={{ display: 'grid', gap: 8 }}>
-                <div style={{ fontSize: 12, color: '#6b7280' }}>环境地址（必填：stg & prod）</div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>环境地址（可选：stg）</div>
                 {fields.map((field) => {
                   const nameLabel = field.name === 0 ? 'stg' : field.name === 1 ? 'prod' : 'env'
                   return (
@@ -349,13 +349,13 @@ export default function ProjectsList() {
                       <Form.Item {...field} name={[field.name, 'envName']} hidden initialValue={nameLabel}>
                         <Input />
                       </Form.Item>
-                      <Form.Item {...field} name={[field.name, 'envUrl']} label={`${nameLabel.toUpperCase()} 环境地址`} rules={[{ required: true, message: `请填写${nameLabel}环境地址` }]}> 
-                        <Input placeholder={`例如 https://${nameLabel}.example.com`} />
+                      <Form.Item {...field} name={[field.name, 'envUrl']} label={`${nameLabel.toUpperCase()} 环境地址`}> 
+                        <Input placeholder={`例如 https://${nameLabel}.example.com（可选）`} />
                       </Form.Item>
                     </div>
                   )
                 })}
-                {/* 不提供添加或移除按钮：默认仅 stg & prod，且均为必填 */}
+                {/* 不提供添加或移除按钮：默认仅 stg */}
               </div>
             )}
           </Form.List>
