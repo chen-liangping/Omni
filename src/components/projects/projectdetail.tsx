@@ -743,7 +743,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
           <DeploymentDetailContent 
             deploy={showDeployDetail}
             onSync={(deploymentName) => handleSync(deploymentName)}
-            onRollback={(deploymentName) => openRollback(deploymentName)}
+            onRestart={(deploymentName) => handleRestart(deploymentName)}
             onViewPodLogs={handleViewPodLogs}
           />
         )}

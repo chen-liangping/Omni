@@ -170,7 +170,7 @@ export default function DeployRecordsList() {
           <DeploymentDetailContent 
             deploy={showDeployDetail}
             onSync={(deploymentName: string) => handleSync(deploymentName)}
-            onRollback={(deploymentName: string) => openRollback(deploymentName)}
+            onRestart={(deploymentName: string) => handleRestart(deploymentName)}
             onViewPodLogs={handleViewPodLogs}
           />
         )}

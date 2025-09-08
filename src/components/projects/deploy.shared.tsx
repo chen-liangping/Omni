@@ -216,10 +216,10 @@ function renderPodStatusSummary(podStatus: ReplicaSetRecord['podStatus']) {
 }
 
 // 组件：DeploymentDetailContent（统一导出）
-export function DeploymentDetailContent({ deploy, onSync, onRollback, onViewPodLogs }: {
+export function DeploymentDetailContent({ deploy, onSync, onRestart, onViewPodLogs }: {
   deploy: DeployRecord
   onSync: (deploymentName: string) => void
-  onRollback: (deploymentName: string) => void
+  onRestart: (deploymentName: string) => void
   onViewPodLogs: (pod: PodRecord) => void
 }) {
   const columns: ColumnsType<ReplicaSetRecord> = [
@@ -232,7 +232,7 @@ export function DeploymentDetailContent({ deploy, onSync, onRollback, onViewPodL
       render: (_: unknown, record: ReplicaSetRecord) => (
         <Space>
           <AntButton size="small" type="link" style={{ color: '#1677ff' }} onClick={() => onSync(record.name)}>sync</AntButton>
-          <AntButton size="small" type="link" style={{ color: '#1677ff' }} onClick={() => onRollback(record.name)}>rollback</AntButton>
+          <AntButton size="small" type="link" style={{ color: '#1677ff' }} onClick={() => onRestart(record.name)}>restart</AntButton>
         </Space>
       )
     }

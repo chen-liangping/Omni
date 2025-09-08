@@ -152,12 +152,18 @@ export default function ProjectsList() {
       key: 'envInfo', 
       render: (_, record) => (
         <div>
-          {(record.envs || []).map(env => (
-            <div key={env.name} style={{ marginBottom: 4 }}>
-              <Tag color={env.name === 'prod' ? 'gold' : 'blue'}>{env.name.toUpperCase()}</Tag>
-              <span style={{ fontSize: 12, color: '#666' }}>main</span>
-            </div>
-          ))}
+          {(() => {
+            const stgOnly = (record.envs || []).filter(env => env.name === 'stg')
+            if (stgOnly.length === 0) {
+              return <span style={{ fontSize: 12, color: '#999' }}>无 STG 环境</span>
+            }
+            return stgOnly.map(env => (
+              <div key={env.name} style={{ marginBottom: 4 }}>
+                <Tag color="blue">{env.name.toUpperCase()}</Tag>
+                <span style={{ fontSize: 12, color: '#666' }}>main</span>
+              </div>
+            ))
+          })()}
         </div>
       )
     },
@@ -260,7 +266,7 @@ export default function ProjectsList() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h1 style={{ color: 'var(--heading)', margin: 0 }}>项目列表</h1>
         <Space>
-          <AntButton type="primary" icon={<PlusOutlined />} onClick={() => setShowAdd(true)}>新增项目</AntButton>
+          <AntButton type="primary"style={{ right: 16 }} icon={<PlusOutlined />} onClick={() => setShowAdd(true)}>新增项目</AntButton>
         </Space>
       </div>
       <AntTable<ProjectRow> rowKey={(r) => r.id} columns={columns} dataSource={rows} />
