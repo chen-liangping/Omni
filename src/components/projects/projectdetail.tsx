@@ -1,9 +1,11 @@
 "use client"
 import React, { useEffect, useMemo, useState } from 'react'
-import { Card, Button as AntButton, Drawer, Form, Select as AntSelect, Input, Space, Tag, DatePicker, Checkbox, Modal, message, Tabs, Table as AntTable, Popconfirm, Descriptions, Typography } from 'antd'
+import { Card, Button as AntButton, Drawer, Form, Select as AntSelect, Input, Space, Tag, DatePicker, Modal, message, Tabs, Table as AntTable, Descriptions, Typography } from 'antd'
 import dayjs from 'dayjs'
-import { DeleteOutlined, ThunderboltOutlined, ReloadOutlined, EyeOutlined, RollbackOutlined } from '@ant-design/icons'
-import { getDeployRecordsMock } from './deployrecords.mock'
+import { DeleteOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { CheckCircleTwoTone, CloseCircleTwoTone } from '@ant-design/icons'
+import { getDeployRecordsMock, DeploymentDetailContent, RollbackModal, type DeployRecord, type PodRecord } from './deploy.shared'
+import GiscusComments from '../comments/GiscusComments'
 
 /**
  * 这段代码实现了"项目详情"原型页：顶部项目信息 + 环境卡片列表 + 规划部署 + 部署记录
@@ -29,45 +31,7 @@ interface BranchBind {
 
 interface EnvBind { env: Env; binds: BranchBind[] }
 
-// 部署记录相关接口（与独立页面保持一致）
-interface PodRecord {
-  id: string
-  name: string
-  status: 'running' | 'pending' | 'failed' | 'terminated'
-  node: string
-  restartCount: number
-  createdAt: string
-}
-
-interface ReplicaSetRecord {
-  id: string
-  name: string
-  createdAt: string
-  podStatus: {
-    running: number
-    failed: number
-    terminated: number
-  }
-  uptime: string
-  isCurrent: boolean
-  pods: PodRecord[]
-}
-
-interface DeployRecord {
-  id: string
-  deployId: string
-  commit: {
-    hash: string
-    author: string
-  }
-  deployTime: string
-  status: 'success' | 'failed' | 'pending' | 'cancelled'
-  duration: string
-  environment: 'stg' | 'prod'
-  replicaSets: ReplicaSetRecord[]
-}
-
-type HasFormat = { format: (fmt: string) => string }
+// 部署记录相关类型统一从 mock 引入，避免重复定义
 
 export default function ProjectDetail({ projectId }: { projectId: string }) {
   const [meta, setMeta] = useState<{ name: string; repo?: string }>({ name: `project-${projectId}` })
@@ -83,7 +47,6 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
   // 部署记录相关状态
   const [deployGroups, setDeployGroups] = useState<DeployRecord[]>([])
   const [showDeployDetail, setShowDeployDetail] = useState<DeployRecord | null>(null)
-  const [expandedReplicaSetId, setExpandedReplicaSetId] = useState<string | null>(null)
   const [showPodLogs, setShowPodLogs] = useState<PodRecord | null>(null)
 
   // 仓库与分支：仓库来自 projects 列表（localStorage），分支提供基础候选
@@ -256,41 +219,39 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     }, 3000)
   }
 
-  const handleRollback = (deployId: string, targetImage: string) => {
-    message.success(`正在回滚到 ${targetImage}...`)
-    setTimeout(() => {
-      message.success('回滚完成')
-    }, 2000)
+  const handleRestart = (deploymentName: string) => {
+    message.success(`正在重启 ${deploymentName}...`)
+    setTimeout(() => message.success('重启完成'), 1500)
+  }
+
+  const handleSync = (deploymentName: string) => {
+    message.success(`正在同步 ${deploymentName}...`)
+    setTimeout(() => message.success('同步完成'), 1200)
+  }
+
+  const [showRollback, setShowRollback] = useState<{ open: boolean; target?: string }>({ open: false })
+  const openRollback = (deploymentName: string) => setShowRollback({ open: true, target: deploymentName })
+  const confirmRollback = (commitId: string) => {
+    message.success(`已回滚到 ${commitId}`)
+    setShowRollback({ open: false, target: undefined })
   }
 
   const handleViewPodLogs = (pod: PodRecord) => {
     setShowPodLogs(pod)
   }
 
+  // 类型保护：确保包含 node 与 restartCount 字段
+  function hasPodRuntimeFields(p: PodRecord | null): p is PodRecord & { node: string; restartCount: number } {
+    if (!p || typeof p !== 'object') return false
+    const candidate = (p as unknown) as Record<string, unknown>
+    const hasNode = 'node' in candidate && typeof candidate.node === 'string'
+    const hasRestart = 'restartCount' in candidate && typeof candidate.restartCount === 'number'
+    return hasNode && hasRestart
+  }
+
   const showDeployDetails = (deploy: DeployRecord) => {
     setShowDeployDetail(deploy)
-    setExpandedReplicaSetId(null)
   }
-
-  const toggleReplicaSetDetails = (replicaSetId: string) => {
-    setExpandedReplicaSetId(prev => prev === replicaSetId ? null : replicaSetId)
-  }
-
-
-  // 部署记录：状态标签与摘要
-  const renderPodStatusSummary = (podStatus: ReplicaSetRecord['podStatus']) => {
-    const { running, failed, terminated } = podStatus
-    const total = running + failed + terminated
-    if (total === 0) return <Text type="secondary">无Pod</Text>
-    return (
-      <Space size={4}>
-        {running > 0 && <Text type="success">{running} running</Text>}
-        {failed > 0 && <Text type="danger">{failed} failed</Text>}
-        {terminated > 0 && <Text type="secondary">{terminated} terminated</Text>}
-      </Space>
-    )
-  }
-
 
   const statusOf = (e: EnvBind) => {
     if (!e.binds || e.binds.length === 0) return '待生效'
@@ -423,6 +384,12 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
           type ActiveByRepo = { repo: string; bind?: BranchBind }
           const activeByRepo: ActiveByRepo[] = []
           const upcomingList: BranchBind[] = []
+          // 计算当前环境最新部署状态（简化逻辑：取该环境的第一条记录，非 failed 视为 success）
+          const latestEnvStatus = (() => {
+            const envRecords = deployGroups.filter(d => d.environment === e.env)
+            const head = envRecords[0]
+            return head && head.status === 'failed' ? 'failed' : 'success'
+          })()
           primaryRepos.forEach(repo => {
             const list = repoToBinds[repo] || []
             
@@ -457,7 +424,13 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>生效中</div>
                   {activeByRepo.map(({ repo, bind }, idx) => (
-                    <div key={repo + idx} style={{ border: '1px solid #eee', borderRadius: 8, padding: 8, marginBottom: 8, wordBreak: 'break-word' }}>
+                    <div key={repo + idx} style={{ border: '1px solid #eee', borderRadius: 8, padding: 8, marginBottom: 8, wordBreak: 'break-word', position: 'relative' }}>
+                      {/* 部署结果图标：右上角 */}
+                      {latestEnvStatus === 'success' ? (
+                        <CheckCircleTwoTone twoToneColor="#52c41a" style={{ position: 'absolute', top: 8, right: 8, fontSize: 16 }} title="部署成功" />
+                      ) : (
+                        <CloseCircleTwoTone twoToneColor="#ff4d4f" style={{ position: 'absolute', top: 8, right: 8, fontSize: 16 }} title="部署失败" />
+                      )}
                       {bind ? (
                         <>
                           <div style={{ fontSize: 12, color: '#6b7280' }}>分支</div>
@@ -525,16 +498,20 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
                   
                   columns={[
                     {
-                      title: '部署ID',
+                      title: '部署 ID',
                       dataIndex: 'deployId',
                       key: 'deployId',
-                      width: 200,
+                      width: 100,
                       render: (deployId: string, record: DeployRecord) => (
                         <Space>
                           <AntButton type="link" style={{ padding: 0 }} onClick={() => showDeployDetails(record)}>
-                            <Text strong>{deployId}</Text>
+                            <Text strong style={{ color: '#1677ff' }}>{deployId}</Text>
                           </AntButton>
-                          <Tag color={record.environment === 'stg' ? 'blue' : 'gold'}>
+                          <Tag 
+                            color={record.environment === 'stg' ? 'blue' : 'green'} 
+                            bordered={false}
+                            style={{ fontSize: 9, height: 16, lineHeight: '14px', padding: '0 6px', borderRadius: 6, transform: 'translateY(-1px)' }}
+                          >
                             {record.environment.toUpperCase()}
                           </Tag>
                         </Space>
@@ -585,12 +562,8 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
                       width: 180,
                       render: (_, record: DeployRecord) => (
                         <Space>
-                          <AntButton size="small" icon={<ReloadOutlined />} onClick={() => handleRedeploy(record.id)}>
-                            重新部署
-                          </AntButton>
-                          <AntButton size="small" icon={<EyeOutlined />} onClick={() => showDeployDetails(record)}>
-                            查看
-                          </AntButton>
+                          <AntButton size="small" type="link" style={{ color: '#1677ff' }} onClick={() => handleSync(record.deployId)}>sync</AntButton>
+                          <AntButton size="small" type="link" style={{ color: '#1677ff' }} onClick={() => openRollback(record.deployId)}>rollback</AntButton>
                         </Space>
                       )
                     }
@@ -759,7 +732,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
         </div>
       </Modal>
 
-      {/* 部署记录详情Drawer（点击部署ID打开）：仅 ReplicaSet + Pod 展开 */}
+      {/* 部署记录详情Drawer（点击部署ID打开）：Deployment 列表 -> Pod 列表 */}
       <Drawer
         title={`部署详情 - ${showDeployDetail?.deployId ?? ''}`}
         open={!!showDeployDetail}
@@ -767,46 +740,12 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
         width={900}
       >
         {showDeployDetail && (
-          <div>
-            <div style={{ marginBottom: 24 }}>
-              <h3 style={{ marginBottom: 16 }}>ReplicaSet 信息</h3>
-              <AntTable
-                size="small"
-                pagination={false}
-                dataSource={showDeployDetail.replicaSets}
-                rowKey="id"
-                columns={[
-                  { title: 'ReplicaSet', dataIndex: 'name', key: 'name', width: 240, render: (name: string) => <Text code>{name}</Text> },
-                  { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 140 },
-                  { title: 'Pod 状态', dataIndex: 'podStatus', key: 'podStatus', width: 220, render: (podStatus: ReplicaSetRecord['podStatus']) => renderPodStatusSummary(podStatus) },
-                  { title: '存活时间', dataIndex: 'uptime', key: 'uptime', width: 120 },
-                ]}
-                expandable={{
-                  expandedRowRender: (replicaSet: ReplicaSetRecord) => (
-                    <div style={{ padding: '8px 0' }}>
-                      {replicaSet.pods.length === 0 ? (
-                        <Text type="secondary">无运行中的Pod</Text>
-                      ) : (
-                        <AntTable
-                          size="small"
-                          pagination={false}
-                          dataSource={replicaSet.pods}
-                          rowKey="id"
-                          columns={[
-                            { title: 'Pod 名称', dataIndex: 'name', key: 'name', render: (name: string) => <Text code>{name}</Text> },
-                            { title: '状态', dataIndex: 'status', key: 'status', render: (status: string) => getPodStatusTag(status) },
-                            { title: '节点', dataIndex: 'node', key: 'node' },
-                            { title: '重启次数', dataIndex: 'restartCount', key: 'restartCount' },
-                          ]}
-                        />
-                      )}
-                    </div>
-                  ),
-                  rowExpandable: (record) => record.pods.length > 0,
-                }}
-              />
-            </div>
-          </div>
+          <DeploymentDetailContent 
+            deploy={showDeployDetail}
+            onSync={(deploymentName) => handleSync(deploymentName)}
+            onRollback={(deploymentName) => openRollback(deploymentName)}
+            onViewPodLogs={handleViewPodLogs}
+          />
         )}
       </Drawer>
 
@@ -822,8 +761,12 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
             <Descriptions size="small" column={2} style={{ marginBottom: 16 }}>
               <Descriptions.Item label="Pod名称">{showPodLogs.name}</Descriptions.Item>
               <Descriptions.Item label="状态">{getPodStatusTag(showPodLogs.status)}</Descriptions.Item>
-              <Descriptions.Item label="节点">{showPodLogs.node}</Descriptions.Item>
-              <Descriptions.Item label="重启次数">{showPodLogs.restartCount}</Descriptions.Item>
+              {hasPodRuntimeFields(showPodLogs) && (
+                <>
+                  <Descriptions.Item label="节点">{showPodLogs.node}</Descriptions.Item>
+                  <Descriptions.Item label="重启次数">{showPodLogs.restartCount}</Descriptions.Item>
+                </>
+              )}
             </Descriptions>
             <div style={{ background: '#000', color: '#00ff00', padding: 16, borderRadius: 6, fontFamily: 'monospace', fontSize: 12, height: 400, overflow: 'auto' }}>
               <div>2025-09-05 15:32:00 [INFO] Pod starting...</div>
@@ -836,7 +779,21 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
         )}
       </Drawer>
 
+      {/* 评论区域 */}
+      <div style={{ marginTop: 24 }}>
+        <GiscusComments />
+      </div>
+
+      <RollbackModal 
+        open={showRollback.open}
+        onCancel={() => setShowRollback({ open: false })}
+        onConfirm={confirmRollback}
+        title={showRollback.target ? `回滚 - ${showRollback.target}` : '回滚到指定 Commit'}
+      />
+
     </main>
   )
 }
+
+type HasFormat = { format: (fmt: string) => string }
 

@@ -1,8 +1,8 @@
 "use client"
 import React, { useState, useEffect } from 'react'
-import { Table as AntTable, Button as AntButton, Space, Tag, message, Drawer, Descriptions, Typography, Collapse, Divider } from 'antd'
-import { ReloadOutlined, RollbackOutlined, EyeOutlined, DownOutlined, RightOutlined } from '@ant-design/icons'
+import { Table as AntTable, Button as AntButton, Space, Tag, message, Drawer, Descriptions, Typography, Divider } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
+import { DeploymentDetailContent, RollbackModal, getDeployRecordsMock, type DeployRecord, type PodRecord } from './deploy.shared'
 
 /**
  * 这段代码实现了"部署记录"页面：采用仿 Vercel 风格的三级展开结构
@@ -11,171 +11,7 @@ import type { ColumnsType } from 'antd/es/table'
  */
 
 const { Text } = Typography
-const { Panel } = Collapse
 
-// Pod 数据结构（层级三）
-export interface PodRecord {
-  id: string
-  name: string
-  status: 'running' | 'pending' | 'failed' | 'terminated'
-  node: string
-  restartCount: number
-  createdAt: string
-}
-
-// ReplicaSet 数据结构（层级二）
-export interface ReplicaSetRecord {
-  id: string
-  name: string
-  createdAt: string
-  podStatus: {
-    running: number
-    failed: number
-    terminated: number
-  }
-  uptime: string
-  isCurrent: boolean
-  pods: PodRecord[]
-}
-
-// 部署记录数据结构（层级一，仿 Vercel 风格）
-export interface DeployRecord {
-  id: string
-  deployId: string // #102, #101 等
-  commit: {
-    hash: string
-    author: string
-  }
-  deployTime: string
-  status: 'success' | 'failed' | 'pending' | 'cancelled'
-  duration: string
-  environment: 'stg' | 'prod'
-  replicaSets: ReplicaSetRecord[]
-}
-
-import { getDeployRecordsMock } from './deployrecords.mock'
-const mockData: DeployRecord[] = [
-  {
-    id: 'deploy-102',
-    deployId: '#102',
-    commit: {
-      hash: 'a1b2c3d',
-      author: 'alice'
-    },
-    deployTime: '2025-09-05 15:30',
-    status: 'success',
-    duration: '2m15s',
-    environment: 'stg',
-    replicaSets: [
-      {
-        id: 'rs-1',
-        name: 'my-app-6d4f8c7d9',
-        createdAt: '15:32',
-        podStatus: { running: 3, failed: 0, terminated: 0 },
-        uptime: '3h20m',
-        isCurrent: true,
-        pods: [
-          {
-            id: 'pod-1',
-            name: 'my-app-6d4f8c7d9-abcde',
-            status: 'running',
-            node: 'node-1',
-            restartCount: 0,
-            createdAt: '15:32'
-          },
-          {
-            id: 'pod-2',
-            name: 'my-app-6d4f8c7d9-fghij',
-            status: 'running',
-            node: 'node-2',
-            restartCount: 0,
-            createdAt: '15:32'
-          },
-          {
-            id: 'pod-3',
-            name: 'my-app-6d4f8c7d9-klmno',
-        status: 'running',
-            node: 'node-1',
-            restartCount: 1,
-            createdAt: '15:32'
-          }
-        ]
-      },
-      {
-        id: 'rs-2',
-        name: 'my-app-5b7e3f2c8',
-        createdAt: '09-04 11:20',
-        podStatus: { running: 0, failed: 0, terminated: 3 },
-        uptime: '1d12h',
-        isCurrent: false,
-        pods: []
-      }
-    ]
-  },
-  {
-    id: 'deploy-101',
-    deployId: '#101',
-    commit: {
-      hash: '9f8e7d6',
-      author: 'bob'
-    },
-    deployTime: '2025-09-04 11:20',
-    status: 'failed',
-    duration: '5m43s',
-    environment: 'stg',
-    replicaSets: [
-      {
-        id: 'rs-3',
-        name: 'my-app-5b7e3f2c8',
-        createdAt: '11:20',
-        podStatus: { running: 0, failed: 3, terminated: 0 },
-        uptime: '1d12h',
-        isCurrent: false,
-        pods: [
-          {
-            id: 'pod-4',
-            name: 'my-app-5b7e3f2c8-xyz12',
-            status: 'failed',
-            node: 'node-1',
-            restartCount: 3,
-            createdAt: '11:20'
-          },
-          {
-            id: 'pod-5',
-            name: 'my-app-5b7e3f2c8-abc34',
-            status: 'failed',
-            node: 'node-2',
-            restartCount: 2,
-            createdAt: '11:20'
-          }
-        ]
-      }
-    ]
-  },
-  {
-    id: 'deploy-100',
-    deployId: '#100',
-    commit: {
-      hash: '7c6d5e4',
-      author: 'alice'
-    },
-    deployTime: '2025-09-03 09:45',
-    status: 'success',
-    duration: '1m58s',
-    environment: 'stg',
-    replicaSets: [
-      {
-        id: 'rs-4',
-        name: 'my-app-4c2d7a1b6',
-        createdAt: '09:45',
-        podStatus: { running: 0, failed: 0, terminated: 3 },
-        uptime: '2d3h',
-        isCurrent: false,
-        pods: []
-      }
-    ]
-  }
-]
 
 export default function DeployRecordsList() {
   const [data, setData] = useState<DeployRecord[]>([])
@@ -183,8 +19,8 @@ export default function DeployRecordsList() {
     setData(getDeployRecordsMock())
   }, [])
   const [showDeployDetail, setShowDeployDetail] = useState<DeployRecord | null>(null)
-  const [expandedReplicaSetId, setExpandedReplicaSetId] = useState<string | null>(null)
   const [showPodLogs, setShowPodLogs] = useState<PodRecord | null>(null)
+  const [showRollback, setShowRollback] = useState<{ open: boolean; target?: string }>(() => ({ open: false }))
 
   // 获取部署状态标签
   const getDeployStatusTag = (status: string) => {
@@ -210,34 +46,6 @@ export default function DeployRecordsList() {
     return <Tag color={config.color}>{config.text}</Tag>
   }
 
-  // 重新部署
-  const handleRedeploy = (deployId: string) => {
-    setData(prev => prev.map(deploy => 
-      deploy.id === deployId 
-        ? { ...deploy, status: 'pending' as const }
-        : deploy
-    ))
-    message.success('正在重新部署...')
-    
-    setTimeout(() => {
-      setData(prev => prev.map(deploy => 
-        deploy.id === deployId 
-          ? { ...deploy, status: 'success' as const, duration: '2m30s' }
-          : deploy
-      ))
-      message.success('重新部署完成')
-    }, 3000)
-  }
-
-  // 回滚到指定版本
-  const handleRollback = (targetLabel: string) => {
-    message.success(`正在回滚到 ${targetLabel}...`)
-    
-    setTimeout(() => {
-      message.success('回滚完成')
-    }, 2000)
-  }
-
   // 查看Pod日志
   const handleViewPodLogs = (pod: PodRecord) => {
     setShowPodLogs(pod)
@@ -246,28 +54,6 @@ export default function DeployRecordsList() {
   // 显示部署详情
   const showDeployDetails = (deploy: DeployRecord) => {
     setShowDeployDetail(deploy)
-    setExpandedReplicaSetId(null) // 重置ReplicaSet展开状态
-  }
-
-  // 切换ReplicaSet展开状态
-  const toggleReplicaSetDetails = (replicaSetId: string) => {
-    setExpandedReplicaSetId(prev => prev === replicaSetId ? null : replicaSetId)
-  }
-
-  // 渲染Pod状态摘要
-  const renderPodStatusSummary = (podStatus: ReplicaSetRecord['podStatus']) => {
-    const { running, failed, terminated } = podStatus
-    const total = running + failed + terminated
-    
-    if (total === 0) return <Text type="secondary">无Pod</Text>
-    
-    return (
-      <Space size={4}>
-        {running > 0 && <Text type="success">{running} running</Text>}
-        {failed > 0 && <Text type="danger">{failed} failed</Text>}
-        {terminated > 0 && <Text type="secondary">{terminated} terminated</Text>}
-      </Space>
-    )
   }
 
   // 主列表配置（仿 Vercel 风格）
@@ -280,9 +66,13 @@ export default function DeployRecordsList() {
       render: (deployId: string, record: DeployRecord) => (
         <Space>
           <AntButton type="link" style={{ padding: 0 }} onClick={() => showDeployDetails(record)}>
-            <Text strong>{deployId}</Text>
+            <Text strong style={{ color: '#1677ff' }}>{deployId}</Text>
           </AntButton>
-          <Tag color={record.environment === 'stg' ? 'blue' : 'gold'}>
+          <Tag 
+            color={record.environment === 'stg' ? 'blue' : 'green'} 
+            bordered={false}
+            style={{ fontSize: 9, height: 16, lineHeight: '14px', padding: '0 6px', borderRadius: 6, transform: 'translateY(-1px)' }}
+          >
             {record.environment.toUpperCase()}
           </Tag>
         </Space>
@@ -321,16 +111,34 @@ export default function DeployRecordsList() {
       width: 220,
       render: (_, record: DeployRecord) => (
         <Space>
-          <AntButton size="small" icon={<ReloadOutlined />} onClick={() => handleRedeploy(record.id)}>
-            Redeploy
-          </AntButton>
-          <AntButton size="small" icon={<RollbackOutlined />} onClick={() => handleRollback(record.deployId)}>
-            Rollback
-          </AntButton>
+          <AntButton size="small" type="link" style={{ color: '#1677ff' }} onClick={() => handleSync(record.deployId)}>sync</AntButton>
+          <AntButton size="small" type="link" style={{ color: '#1677ff' }} onClick={() => openRollback(record.deployId)}>rollback</AntButton>
         </Space>
       )
     }
   ]
+
+  // restart 某个 Deployment（模拟）
+  const handleRestart = (deploymentName: string) => {
+    message.success(`正在重启 ${deploymentName}...`)
+    setTimeout(() => message.success('重启完成'), 1500)
+  }
+
+  // sync 某个 Deployment（模拟）
+  const handleSync = (deploymentName: string) => {
+    message.success(`正在同步 ${deploymentName}...`)
+    setTimeout(() => message.success('同步完成'), 1200)
+  }
+
+  // rollback：打开弹窗
+  const openRollback = (deploymentName: string) => {
+    setShowRollback({ open: true, target: deploymentName })
+  }
+
+  const confirmRollback = (commitId: string) => {
+    message.success(`已回滚到 ${commitId}`)
+    setShowRollback({ open: false, target: undefined })
+  }
 
 
   return (
@@ -359,119 +167,22 @@ export default function DeployRecordsList() {
         width={900}
       >
         {showDeployDetail && (
-          <div>
-            {/* ReplicaSet 信息 */}
-            <div style={{ marginBottom: 24 }}>
-              <h3 style={{ marginBottom: 16 }}>ReplicaSet 信息</h3>
-              <AntTable
-                size="small"
-                pagination={false}
-                dataSource={showDeployDetail.replicaSets}
-                rowKey="id"
-                columns={[
-                  {
-                    title: 'ReplicaSet',
-                    dataIndex: 'name',
-                    key: 'name',
-                    width: 240,
-                    render: (name: string) => <Text code>{name}</Text>
-                  },
-                  {
-                    title: '创建时间',
-                    dataIndex: 'createdAt',
-                    key: 'createdAt',
-                    width: 140
-                  },
-                  {
-                    title: 'Pod 状态',
-                    key: 'podStatus',
-                    width: 220,
-                    render: (_, record: ReplicaSetRecord) => renderPodStatusSummary(record.podStatus)
-                  },
-                  {
-                    title: '存活时间',
-                    dataIndex: 'uptime',
-                    key: 'uptime',
-                    width: 120
-                  },
-                  {
-                    title: '操作',
-                    key: 'actions',
-                    width: 180,
-                    render: (_, record: ReplicaSetRecord) => (
-                      <Space>
-                        {record.isCurrent ? (
-                          <Tag color="success">✅ 当前版本</Tag>
-                        ) : (
-                          <AntButton size="small" type="link" onClick={() => handleRollback(record.name)}>
-                            回滚到此版本
-                          </AntButton>
-                        )}
-                      </Space>
-                    )
-                  }
-                ]}
-                expandable={{
-                  expandedRowRender: (replicaSet: ReplicaSetRecord) => (
-                    <div style={{ padding: '8px 0' }}>
-                      <h4 style={{ marginBottom: 12 }}>Pod 列表</h4>
-                      {replicaSet.pods.length === 0 ? (
-                        <Text type="secondary">无运行中的Pod</Text>
-                      ) : (
-                        <AntTable
-                          size="small"
-                          pagination={false}
-                          dataSource={replicaSet.pods}
-                          rowKey="id"
-                          columns={[
-                            {
-                              title: 'Pod 名称',
-                              dataIndex: 'name',
-                              key: 'name',
-                              render: (name: string) => <Text code>{name}</Text>
-                            },
-                            {
-                              title: '状态',
-                              dataIndex: 'status',
-                              key: 'status',
-                              render: (status: string) => getPodStatusTag(status)
-                            },
-                            {
-                              title: '节点',
-                              dataIndex: 'node',
-                              key: 'node'
-                            },
-                            {
-                              title: '重启次数',
-                              dataIndex: 'restartCount',
-                              key: 'restartCount'
-                            },
-                            {
-                              title: '日志',
-                              key: 'logs',
-                              render: (_, pod: PodRecord) => (
-                                <AntButton 
-                                  size="small" 
-                                  type="link" 
-                                  icon={<EyeOutlined />}
-                                  onClick={() => handleViewPodLogs(pod)}
-                                >
-                                  查看日志
-                                </AntButton>
-                              )
-                            }
-                          ]}
-                        />
-                      )}
-                    </div>
-                  ),
-                  rowExpandable: (record) => record.pods.length > 0,
-                }}
-              />
-            </div>
-          </div>
+          <DeploymentDetailContent 
+            deploy={showDeployDetail}
+            onSync={(deploymentName: string) => handleSync(deploymentName)}
+            onRollback={(deploymentName: string) => openRollback(deploymentName)}
+            onViewPodLogs={handleViewPodLogs}
+          />
         )}
       </Drawer>
+
+      {/* 回滚弹窗 */}
+      <RollbackModal 
+        open={showRollback.open}
+        onCancel={() => setShowRollback({ open: false })}
+        onConfirm={confirmRollback}
+        title={showRollback.target ? `回滚 - ${showRollback.target}` : '回滚到指定 Commit'}
+      />
 
       {/* Pod日志Drawer */}
       <Drawer
@@ -485,8 +196,6 @@ export default function DeployRecordsList() {
             <Descriptions size="small" column={2} style={{ marginBottom: 16 }}>
               <Descriptions.Item label="Pod名称">{showPodLogs.name}</Descriptions.Item>
               <Descriptions.Item label="状态">{getPodStatusTag(showPodLogs.status)}</Descriptions.Item>
-              <Descriptions.Item label="节点">{showPodLogs.node}</Descriptions.Item>
-              <Descriptions.Item label="重启次数">{showPodLogs.restartCount}</Descriptions.Item>
             </Descriptions>
             
             <Divider />
