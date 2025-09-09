@@ -36,7 +36,7 @@ export interface DeployRecord {
   deployTime: string
   status: 'success' | 'failed' | 'pending' | 'cancelled'
   duration: string
-  environment: 'stg' | 'prod'
+  environment: 'stg'
   replicaSets: ReplicaSetRecord[]
 }
 
@@ -249,9 +249,9 @@ export function DeploymentDetailContent({ deploy, onSync, onRestart, onViewPodLo
           rowKey="id"
           columns={columns}
           expandable={{
+            defaultExpandAllRows: true,
             expandedRowRender: (replicaSet: ReplicaSetRecord) => (
               <div style={{ padding: '8px 0' }}>
-                <h4 style={{ marginBottom: 12 }}>Pod 列表</h4>
                 {replicaSet.pods.length === 0 ? (
                   <Text type="secondary">无运行中的Pod</Text>
                 ) : (
@@ -313,7 +313,7 @@ export function RollbackModal({ open, onCancel, onConfirm, title, commitOptions,
   const selectedDetail = useMemo(() => options.find(o => o.id === selectedId)?.detail || '', [options, selectedId])
 
   return (
-    <Modal title={title || '回滚到指定 Commit'} open={open} onCancel={onCancel} onOk={() => selectedId && onConfirm(selectedId)} okText="确认回滚" cancelText="取消" destroyOnClose>
+    <Modal title={title || '回滚到指定 Commit'} open={open} onCancel={onCancel} onOk={() => selectedId && onConfirm(selectedId)} okText="确认回滚" cancelText="取消" destroyOnHidden>
       <Space direction="vertical" style={{ width: '100%' }} size={12}>
         <div>
           <Typography.Text style={{ display: 'block', marginBottom: 6 }}>选择 Commit ID</Typography.Text>

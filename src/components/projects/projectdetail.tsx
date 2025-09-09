@@ -1,10 +1,10 @@
 "use client"
-import React, { useEffect, useMemo, useState } from 'react'
-import { Card, Button as AntButton, Drawer, Form, Select as AntSelect, Input, Space, Tag, DatePicker, Modal, message, Tabs, Table as AntTable, Descriptions, Typography } from 'antd'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { Card, Button as AntButton, Drawer, Form, Select as AntSelect, Input, Space, Tag, DatePicker, Modal, message, Typography, Steps, Collapse, Tabs, Table as AntTable } from 'antd'
 import dayjs from 'dayjs'
 import { DeleteOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { CheckCircleTwoTone, CloseCircleTwoTone } from '@ant-design/icons'
-import { getDeployRecordsMock, DeploymentDetailContent, RollbackModal, type DeployRecord, type PodRecord } from './deploy.shared'
+import { getDeployRecordsMock, type DeployRecord } from './deploy.shared'
 import GiscusComments from '../comments/GiscusComments'
 
 /**
@@ -15,7 +15,7 @@ import GiscusComments from '../comments/GiscusComments'
 
 const { Text } = Typography
 
-type Env = 'stg' | 'prod'
+type Env = 'stg'
 type BranchStatus = 'testing' | 'active'
 
 interface BranchBind { 
@@ -42,13 +42,11 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
   
   // 状态管理
   const [showImmediateModal, setShowImmediateModal] = useState<{ branch: BranchBind; env: Env } | null>(null)
-  const [activeTab, setActiveTab] = useState('deployment')  // 新增Tab状态
+  const [activeTab, setActiveTab] = useState('panel')  // 当前页Tab：panel / ops
   
   // 部署记录相关状态
   const [deployGroups, setDeployGroups] = useState<DeployRecord[]>([])
-  const [showDeployDetail, setShowDeployDetail] = useState<DeployRecord | null>(null)
-  const [showPodLogs, setShowPodLogs] = useState<PodRecord | null>(null)
-
+  
   // 仓库与分支：仓库来自 projects 列表（localStorage），分支提供基础候选
   const repoChoices = choices
   const repoBranches: Record<string, string[]> = useMemo(() => {
@@ -230,18 +228,117 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
   }
 
   const [showRollback, setShowRollback] = useState<{ open: boolean; target?: string }>({ open: false })
+  
+  // 记录每个分支是否处于“状态流转中”（仅被点击的分支卡片变化）
+  // key = `${env}::${repo}::${branch}`
+  type FlowStage = 'building' | 'build_failed' | 'build_succeeded' | 'sync_wait' | 'releasing' | 'release_failed' | 'release_succeeded'
+  const [runningStageByKey, setRunningStageByKey] = useState<Record<string, FlowStage | undefined>>({})
+  const [selectedFlowBranchKey, setSelectedFlowBranchKey] = useState<string | null>(null)
+  const [removedUpcomingByKey, setRemovedUpcomingByKey] = useState<Record<string, boolean>>({})
+  
+  // 日志折叠开关与阶段计时、发布计时
+  const [logsOpenByKey, setLogsOpenByKey] = useState<Record<string, boolean>>({})
+  const [releaseTimeByKey, setReleaseTimeByKey] = useState<Record<string, string>>({})
+  const [releaseLogsByKey, setReleaseLogsByKey] = useState<Record<string, string[]>>({})
+  const releaseTimersRef = useRef<Record<string, number[]>>({})
+  const clearReleaseTimers = (key: string) => {
+    const list = releaseTimersRef.current[key] || []
+    list.forEach(id => clearTimeout(id))
+    releaseTimersRef.current[key] = []
+  }
+  // 操作记录（声明上移）
+  type OperationStatus = '部署成功' | '编译失败' | '部署失败' | '进行中'
+  interface OperationLog { id: string; operator: string; time: string; event: string; status: OperationStatus }
+  const [opLogs, setOpLogs] = useState<OperationLog[]>([])
+  const appendOpLog = (log: Partial<Pick<OperationLog, 'operator'>> & Omit<OperationLog, 'id' | 'time' | 'operator'>) => {
+    const operator = log.operator ?? 'system'
+    const entry: OperationLog = { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, operator, time: new Date().toLocaleString('sv-SE'), event: log.event, status: log.status }
+    setOpLogs(prev => [entry, ...prev].slice(0, 200))
+  }
+  // 启动部署模拟
+  const startRelease = (key: string) => {
+    setRunningStageByKey(prev => ({ ...prev, [key]: 'releasing' }))
+    clearReleaseTimers(key)
+    const parsed = parseBranchKey(key)
+    appendOpLog({ event: `开始部署 ${parsed ? parsed.branch : ''} 分支`, status: '进行中' })
+    const t = window.setTimeout(() => {
+      const success = true
+      setRunningStageByKey(prev => ({ ...prev, [key]: success ? 'release_succeeded' : 'release_failed' }))
+      if (success) setReleaseTimeByKey(prev => ({ ...prev, [key]: new Date().toLocaleString('sv-SE') }))
+      if (success) setReleaseLogsByKey(prev => ({
+        ...prev,
+        [key]: [
+          'Traced Next.js server files in: 92.17ms',
+          'Created all serverless functions in: 122.342ms',
+          'Collected static files (public/, static/, .next/static): 6.928ms',
+          'Build Completed in /vercel/output [40s]',
+          'Deploying outputs...',
+          'Deployment completed',
+          'Creating build cache...',
+          'Created build cache: 20.629s',
+        ]
+      }))
+      appendOpLog({ event: `部署 ${parsed ? parsed.branch : ''} 分支`, status: success ? '部署成功' : '部署失败' })
+      if (success && parsed) {
+        // 将该分支设置为唯一生效分支
+        const now = new Date().toLocaleString('sv-SE').replace('T', ' ').substring(0, 19)
+        setEnvs(prev => prev.map(e =>
+          e.env === parsed.env
+            ? {
+                ...e,
+                binds: (e.binds || []).map(b => {
+                  if (b.repo === parsed.repo && b.branch === parsed.branch) {
+                    return { ...b, start: now, status: 'active' }
+                  }
+                  // 其他原 active 置回 testing，并标记实际失效时间
+                  if (b.status === 'active') {
+                    return { ...b, actualExpiredAt: now, status: 'testing' }
+                  }
+                  return b
+                })
+              }
+            : e
+        ))
+        // 不清理部署区，让卡片与日志保留
+      }
+    }, 6000)
+    releaseTimersRef.current[key] = [t]
+  }
+  const [buildElapsedByKey, setBuildElapsedByKey] = useState<Record<string, number>>({})
+  const buildTimerRef = useRef<Record<string, number>>({})
+  const clearBuildTimer = (key: string) => {
+    const id = buildTimerRef.current[key]
+    if (id != null) { clearInterval(id); delete buildTimerRef.current[key] }
+  }
+  const formatElapsed = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+
+  // 打开规划部署抽屉（仅 stg）
+  const openPlanning = (env: Env) => {
+    const target = envs.find(x => x.env === env)
+    setShowEdit({ env, binds: target?.binds || [] })
+    const bindsWithStartTime = (target?.binds || []).map((b) => ({
+      ...b,
+      startTime: b.start ? dayjs(b.start) : undefined,
+    }))
+    form.setFieldsValue({ env, binds: bindsWithStartTime.length ? bindsWithStartTime : [{ branch: '', desc: '', startTime: undefined }] })
+  }
+
+  const getBranchKey = (env: Env, bind: BranchBind) => `${env}::${bind.repo}::${bind.branch}`
+  const parseBranchKey = (key: string): { env: Env; repo: string; branch: string } | null => {
+    const parts = key.split('::')
+    if (parts.length !== 3) return null
+    const [env, repo, branch] = parts
+    return { env: env as Env, repo, branch }
+  }
   const openRollback = (deploymentName: string) => setShowRollback({ open: true, target: deploymentName })
   const confirmRollback = (commitId: string) => {
     message.success(`已回滚到 ${commitId}`)
     setShowRollback({ open: false, target: undefined })
   }
 
-  const handleViewPodLogs = (pod: PodRecord) => {
-    setShowPodLogs(pod)
-  }
-
+  
   // 类型保护：确保包含 node 与 restartCount 字段
-  function hasPodRuntimeFields(p: PodRecord | null): p is PodRecord & { node: string; restartCount: number } {
+  function hasPodRuntimeFields(p: DeployRecord | null): p is DeployRecord & { node: string; restartCount: number } {
     if (!p || typeof p !== 'object') return false
     const candidate = (p as unknown) as Record<string, unknown>
     const hasNode = 'node' in candidate && typeof candidate.node === 'string'
@@ -250,7 +347,17 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
   }
 
   const showDeployDetails = (deploy: DeployRecord) => {
-    setShowDeployDetail(deploy)
+    // setShowDeployDetail(deploy) // This state is no longer needed
+  }
+
+  // 打开指定环境的部署详情（Deployment/Pod Drawer）
+  const openUpcomingEnvDetails = (env: Env, bind: BranchBind) => {
+    // setSelectedFlowBranchKey(getBranchKey(env, bind)) // This state is no longer needed
+    // if (envDeploy) {
+    //   setShowDeployDetail(envDeploy)
+    // } else {
+    //   message.info('暂无该环境的部署记录')
+    // }
   }
 
   const statusOf = (e: EnvBind) => {
@@ -319,35 +426,34 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     if (!showImmediateModal) return
     
     const { branch, env } = showImmediateModal
-    const now = new Date().toLocaleString('sv-SE').replace('T', ' ').substring(0, 19)
-    
-    setEnvs(prev => prev.map(e => 
-      e.env === env 
-        ? { 
-            ...e, 
-            binds: e.binds.map(b => {
-              // 如果是要立即生效的分支，更新开始时间并设置为active状态
-              if (b.branch === branch.branch && b.repo === branch.repo) {
-                return { ...b, start: now, status: 'active' }
-              }
-              
-              // 如果是当前生效的其他分支，将其状态改为失效
-              const isCurrentlyActive = b.status === 'active' &&
-                !(b.branch === branch.branch && b.repo === branch.repo)  // 排除要立即生效的分支本身
-              
-              if (isCurrentlyActive) {
-                // 当前生效分支失效，记录实际失效时间，状态保持不变但记录失效时间
-                return { ...b, actualExpiredAt: now, status: 'testing' }
-              }
-              
-              return b
-            })
-          }
-        : e
-    ))
-    
+    const key = getBranchKey(env, branch)
+    // 进入编译中
+    setRunningStageByKey(prev => ({ ...prev, [key]: 'building' }))
+    setSelectedFlowBranchKey(key)
     setShowImmediateModal(null)
-    message.success(`分支 ${branch.branch} 已立即生效，其他生效分支已失效`)
+    // 从待生效区移除该分支
+    setRemovedUpcomingByKey(prev => ({ ...prev, [key]: true }))
+    appendOpLog({ event: `触发立即生效：部署 ${branch.branch} 分支`, status: '进行中' })
+    // 模拟编译完成（包含失败路径，可调整概率或接入真实状态）
+    setTimeout(() => {
+      const fail = Math.random() < 0.2 // 20% 模拟失败
+      setRunningStageByKey(prev => ({ ...prev, [key]: fail ? 'build_failed' : 'build_succeeded' }))
+      if (fail) {
+        appendOpLog({ event: `编译 ${branch.branch} 分支`, status: '编译失败' })
+      }
+      if (!fail) {
+        // 编译成功后进入等待 Sync 阶段，并直接打开部署详情（Deployment/Pod）Drawer
+        setRunningStageByKey(prev => ({ ...prev, [key]: 'sync_wait' }))
+        // 在方案B（合并视图）下，不自动打开 Drawer，由页面下方记录区承载
+        if (true) {
+          // const envDeploy = deployGroups.find(d => d.environment === env) // This state is no longer needed
+          // if (envDeploy) setShowDeployDetail(envDeploy) // This state is no longer needed
+        } else {
+          // 合并视图：自动滚动至记录区
+          // try { recordsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) } catch {} // This ref is no longer needed
+        }
+      }
+    }, 1200)
   }
 
 
@@ -360,17 +466,47 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
           {meta.repo ? <a href={meta.repo} target="_blank" rel="noreferrer">{meta.repo}</a> : <span style={{ color: '#6b7280' }}>未配置仓库</span>}
         </div>
       </div>
+      <Tabs activeKey={activeTab} onChange={setActiveTab} items={[{ key: 'panel', label: '部署面板' }, { key: 'ops', label: '操作记录' }]} />
 
-      <Tabs
-        activeKey={activeTab}
-        onChange={setActiveTab}
-        items={[
-          {
-            key: 'deployment',
-            label: '部署规划',
-            children: (
+      {activeTab === 'panel' && (
+      <>
+      {/* 当前生效分支（stg）基础信息卡 */}
+      <Card style={{ marginBottom: 16 }} title="当前生效分支">
+        {(() => {
+          const primaryRepo = repoChoices[0]
+          if (!primaryRepo) return <Text type="secondary">未配置仓库</Text>
+          const e = envs.find(x => x.env === 'stg')
+          const binds = e?.binds ?? []
+          const list = binds.filter(b => b.repo === primaryRepo)
+          const timedActive = list.filter(b => b.status === 'active').sort((a, b) => (new Date(b.start as string).getTime()) - (new Date(a.start as string).getTime()))
+          const defaultBind = list.find(b => b.isDefault && (b.status === 'testing' || b.status === 'active'))
+          const bind = timedActive[0] || defaultBind
+          const latestEnvStatus = (() => {
+            const envRecords = deployGroups.filter(d => d.environment === 'stg')
+            const head = envRecords[0]
+            return head && head.status === 'failed' ? 'failed' : 'success'
+          })()
+          return (
+            <div style={{ border: '1px solid #f0f0f0', borderRadius: 8, padding: 12, position: 'relative' }}>
+              {latestEnvStatus === 'success' ? (
+                <CheckCircleTwoTone twoToneColor="#52c41a" style={{ position: 'absolute', top: 8, right: 8, fontSize: 16 }} title="部署成功" />
+              ) : (
+                <CloseCircleTwoTone twoToneColor="#ff4d4f" style={{ position: 'absolute', top: 8, right: 8, fontSize: 16 }} title="部署失败" />
+              )}
+              <Space>
+                <Tag color="blue">stg</Tag>
+                <span style={{ fontWeight: 600 }}>{bind ? `${bind.repo}/${bind.branch}` : '未生效'}</span>
+              </Space>
+              <div style={{ marginTop: 6, fontSize: 12, color: '#6b7280' }}>生效时间：{bind?.start ?? '-'}</div>
+              {bind?.desc ? <div style={{ fontSize: 12, color: '#6b7280' }}>功能：{bind.desc}</div> : null}
+            </div>
+          )
+        })()}
+      </Card>
+
+      {/* 待生效（横向排列） */}
       <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr', alignItems: 'stretch' }}>
-        {envs.map(e => {
+        {envs.filter(e => e.env === 'stg').map(e => {
           const now = new Date()
           const binds = e.binds ?? []
           // 按仓库分组
@@ -415,177 +551,138 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
           })
           upcomingList.sort((a, b) => (new Date(a.start as string).getTime()) - (new Date(b.start as string).getTime()))
           return (
-            <Card key={e.env} style={{ width: '100%' }} title={<Space><Tag color="blue">{e.env}</Tag><span>{statusOf(e)}</span></Space>} extra={
-              <Space>
-                <AntButton onClick={() => onOpenEdit(e)}>规划部署</AntButton>
-              </Space>
-            }>
-              <div style={{ display: 'flex', gap: 16, alignItems: 'stretch' }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>生效中</div>
-                  {activeByRepo.map(({ repo, bind }, idx) => (
-                    <div key={repo + idx} style={{ border: '1px solid #eee', borderRadius: 8, padding: 8, marginBottom: 8, wordBreak: 'break-word', position: 'relative' }}>
-                      {/* 部署结果图标：右上角 */}
-                      {latestEnvStatus === 'success' ? (
-                        <CheckCircleTwoTone twoToneColor="#52c41a" style={{ position: 'absolute', top: 8, right: 8, fontSize: 16 }} title="部署成功" />
-                      ) : (
-                        <CloseCircleTwoTone twoToneColor="#ff4d4f" style={{ position: 'absolute', top: 8, right: 8, fontSize: 16 }} title="部署失败" />
-                      )}
-                      {bind ? (
-                        <>
-                          <div style={{ fontSize: 12, color: '#6b7280' }}>分支</div>
-                          <div style={{ marginBottom: 4, fontWeight: 600 }}>{bind.branch}{bind.isDefault ? '（默认）' : ''}</div>
-                          <div style={{ fontSize: 12, color: '#6b7280' }}>功能</div>
-                          <div style={{ marginBottom: 4 }}>{bind.desc || '暂无描述'}</div>
-                          <div style={{ fontSize: 12, color: '#6b7280' }}>生效时间</div>
-                          <div style={{ marginBottom: 8 }}>
-                            {bind.start ?? '-'}
-                          </div>
-                          
-                        </>
-                      ) : (
-                        <div style={{ color: '#6b7280' }}>未配置生效中的分支</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <div style={{ width: 320 }}>
-                  <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>即将生效</div>
-                  {upcomingList.length ? (
-                    <div style={{ display: 'grid', gap: 8 }}>
-                      {upcomingList.map((u, i) => (
-                        <div key={i} style={{ border: '1px solid #1677ff', background: '#f0f7ff', borderRadius: 8, padding: 12, wordBreak: 'break-word' }}>
-                          <div style={{ fontSize: 12, color: '#6b7280' }}>分支</div>
-                          <div style={{ marginBottom: 6, fontWeight: 600 }}>{u.branch}</div>
-                          <div style={{ fontSize: 12, color: '#6b7280' }}>功能</div>
-                          <div style={{ marginBottom: 6 }}>{u.desc}</div>
-                          <div style={{ fontSize: 12, color: '#6b7280' }}>生效时间</div>
-                          <div style={{ marginBottom: 8 }}>{u.start ?? '-'}</div>
-                          
-                          {/* 立即生效按钮 */}
-                          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                            <AntButton 
-                              size="small" 
-                              type="primary" 
-                              icon={<ThunderboltOutlined />}
-                              onClick={() => handleImmediateEffect(u, e.env)}
-                            >
-                              立即生效
-                            </AntButton>
-                          </div>
+            <Card key={e.env} style={{ width: '100%' }} title={<span>待生效</span>} extra={<AntButton onClick={() => openPlanning(e.env)}>规划部署</AntButton>}>
+              <div>
+                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>待生效</div>
+                {upcomingList.length ? (
+                  <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+                    {upcomingList.filter(u => !removedUpcomingByKey[getBranchKey(e.env, u)]).map((u, i) => (
+                      <div key={i} style={{ border: '1px solid #1677ff', background: '#f0f7ff', borderRadius: 8, padding: 12, wordBreak: 'break-word' }}>
+                        {/* 顶行：分支 + 生效时间 */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+                          <div style={{ fontWeight: 600 }}>{u.branch}</div>
+                          <div style={{ fontSize: 12, color: '#6b7280' }}>{u.start ?? '-'}</div>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={{ border: '1px dashed #e5e7eb', borderRadius: 8, padding: 12, color: '#6b7280' }}>暂无即将生效的分支</div>
-                  )}
-                </div>
+                        {/* 功能说明 */}
+                        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>{u.desc || '暂无描述'}</div>
+                        {/* 操作：立即生效 */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                          <AntButton size="small" type="primary" icon={<ThunderboltOutlined />} onClick={() => handleImmediateEffect(u, e.env)}>立即生效</AntButton>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ border: '1px dashed #e5e7eb', borderRadius: 8, padding: 12, color: '#6b7280' }}>暂无待生效的分支</div>
+                )}
               </div>
             </Card>
           )
         })}
       </div>
-            )
-          },
-          {
-            key: 'deployRecords',
-            label: '部署记录',
-            children: (
-              <div>
-                <AntTable<DeployRecord>
-                  rowKey="id"
-                  dataSource={deployGroups}
-                  
-                  columns={[
-                    {
-                      title: '部署 ID',
-                      dataIndex: 'deployId',
-                      key: 'deployId',
-                      width: 100,
-                      render: (deployId: string, record: DeployRecord) => (
-                        <Space>
-                          <AntButton type="link" style={{ padding: 0 }} onClick={() => showDeployDetails(record)}>
-                            <Text strong style={{ color: '#1677ff' }}>{deployId}</Text>
-                          </AntButton>
-                          <Tag 
-                            color={record.environment === 'stg' ? 'blue' : 'green'} 
-                            bordered={false}
-                            style={{ fontSize: 9, height: 16, lineHeight: '14px', padding: '0 6px', borderRadius: 6, transform: 'translateY(-1px)' }}
-                          >
-                            {record.environment.toUpperCase()}
-                          </Tag>
-                        </Space>
-                      )
-                    },
-                    {
-                      title: 'Commit ID',
-                      key: 'commit',
-                      width: 220,
-                      render: (_, record: DeployRecord) => (
-                        <Text code>{record.commit.hash}</Text>
-                      )
-                    },
-                    {
-                      title: '提交人',
-                      dataIndex: ['commit', 'author'],
-                      key: 'author',
-                      width: 100
-                    },
-                    {
-                      title: '部署时间',
-                      dataIndex: 'deployTime',
-                      key: 'deployTime',
-                      width: 160
-                    },
-                    {
-                      title: '状态',
-                      dataIndex: 'status',
-                      key: 'status',
-                      width: 120,
-                      render: (status: string) => getDeployStatusTag(status)
-                    },
-                    {
-                      title: '持续时间',
-                      dataIndex: 'duration',
-                      key: 'duration',
-                      width: 120
-                    },
-                    {
-                      title: '最近一次更新时间',
-                      dataIndex: 'deployTime',
-                      key: 'updatedAt',
-                      width: 180
-                    },
-                    {
-                      title: '操作',
-                      key: 'actions',
-                      width: 180,
-                      render: (_, record: DeployRecord) => (
-                        <Space>
-                          <AntButton size="small" type="link" style={{ color: '#1677ff' }} onClick={() => handleSync(record.deployId)}>sync</AntButton>
-                          <AntButton size="small" type="link" style={{ color: '#1677ff' }} onClick={() => openRollback(record.deployId)}>rollback</AntButton>
-                        </Space>
-                      )
-                    }
-                  ]}
-                />
-              </div>
-            )
-          }
-        ]}
-      />
 
+      {/* 编译区：展示当前步骤状态 */}
+      {selectedFlowBranchKey && (() => {
+        const key = selectedFlowBranchKey
+        const stage = runningStageByKey[key]
+        if (!stage) return null
+        const stageText = stage === 'building' ? '编译中'
+          : stage === 'build_succeeded' ? '编译成功'
+          : stage === 'sync_wait' ? '待部署'
+          : stage === 'build_failed' ? '编译失败'
+          : stage === 'releasing' ? '部署中'
+          : stage === 'release_succeeded' ? '部署成功'
+          : stage === 'release_failed' ? '部署失败'
+          : stage
+        const stageColor: 'processing' | 'success' | 'error' = (stage === 'building' || stage === 'releasing') ? 'processing' : (stage.endsWith('succeeded') ? 'success' : (stage.endsWith('failed') ? 'error' : 'processing'))
+        const parsed = parseBranchKey(key)
+        const [logsOpen, setLogsOpen] = [Boolean(logsOpenByKey[key]), (open: boolean) => setLogsOpenByKey(prev => ({ ...prev, [key]: open }))]
+        return (
+          <Card size="small" style={{ marginTop: 12 }}>
+            {/* 合并部署日志（原独立卡片内容） */}
+            <div style={{ marginTop: 8 }}>
+              <Collapse activeKey={logsOpen ? ['log'] : []} onChange={(k) => setLogsOpen(Array.isArray(k) ? (k as string[]).includes('log') : String(k) === 'log')}>
+                <Collapse.Panel
+                  key="log"
+                  header={
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 12, color: '#6b7280' }}>当前步骤：</span>
+                        <Tag color={stageColor === 'success' ? 'green' : stageColor === 'error' ? 'red' : 'blue'}>{stageText}</Tag>
+                        {stage === 'release_succeeded' && (
+                          <span style={{ fontSize: 12, color: '#6b7280' }}>完成时间：{releaseTimeByKey[key] || '-'}</span>
+                        )}
+                      </div>
+                      <div>
+                        {(stage === 'build_succeeded' || stage === 'sync_wait') && (
+                          <AntButton size="small" type="link" style={{ padding: 0 }} onClick={() => startRelease(key)}>部署</AntButton>
+                        )}
+                        {stage === 'build_failed' && (
+                          <AntButton size="small" type="link" danger style={{ padding: 0 }} onClick={() => {
+                            Modal.confirm({
+                              title: '需要重新提交代码',
+                              onOk: () => {
+                                setRunningStageByKey(prev => { const next = { ...prev }; delete next[key]; return next })
+                                setSelectedFlowBranchKey(null)
+                                setRemovedUpcomingByKey(prev => { const next = { ...prev }; delete next[key]; return next })
+                                const p = parseBranchKey(key)
+                                appendOpLog({ event: `重新规划 ${p ? p.branch : ''} 分支`, status: '进行中' })
+                              }
+                            })
+                          }}>重新规划</AntButton>
+                        )}
+                        {stage === 'release_failed' && (
+                          <AntButton size="small" type="link" style={{ padding: 0 }} onClick={() => startRelease(key)}>重新部署</AntButton>
+                        )}
+                      </div>
+                    </div>
+                  }
+                >
+                  <div style={{ display: 'grid', gap: 12 }}>
+                    <div>
+                      <div style={{ fontWeight: 600, marginBottom: 6 }}>{parsed ? `${parsed.repo}/${parsed.branch} - 编译日志` : '编译日志'}</div>
+                      <div style={{ fontFamily: 'monospace', fontSize: 12, background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 8, padding: 12 }}>
+                        <div>[构建] 安装依赖…</div>
+                        <div>[构建] 打包…</div>
+                        <div>编译用时：{formatElapsed(buildElapsedByKey[key] || 0)}</div>
+                        {stage === 'build_failed' && <div style={{ color: '#d84a1b' }}>[ERROR] 构建失败</div>}
+                        {stage === 'build_succeeded' && <div style={{ color: '#52c41a' }}>[OK] 构建完成</div>}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 600, marginBottom: 6 }}>{parsed ? `${parsed.repo}/${parsed.branch} - 部署日志` : '部署日志'}</div>
+                      <div style={{ fontFamily: 'monospace', fontSize: 12, background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 8, padding: 12 }}>
+                        {stage === 'releasing' && <div>发布中…</div>}
+                        {stage === 'release_failed' && <div style={{ color: '#ff4d4f' }}>[ERROR] 部署失败：镜像拉取失败</div>}
+                        {stage === 'release_succeeded' && (
+                          <>
+                            <div style={{ color: '#52c41a' }}>[OK] 部署成功</div>
+                            {(releaseLogsByKey[key] || []).map((line, idx) => (
+                              <div key={idx}>{line}</div>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </Collapse.Panel>
+              </Collapse>
+            </div>
+          </Card>
+        )
+      })()}
+
+      {/* 合并后不再渲染独立日志卡片 */}
+      </>
+      )}
+
+      {/* 规划部署抽屉 */}
       <Drawer
         title={`规划部署 - ${showEdit?.env?.toUpperCase()} 环境`}
         open={!!showEdit}
         onClose={() => setShowEdit(null)}
         width={800}
-        extra={
-          <Space>
-            <AntButton onClick={() => setShowEdit(null)}>取消</AntButton>
-            <AntButton type="primary" onClick={onSave}>保存</AntButton>
-          </Space>
-        }
+        extra={<Space><AntButton onClick={() => setShowEdit(null)}>取消</AntButton><AntButton type="primary" onClick={onSave}>保存</AntButton></Space>}
       >
         <Form form={form} layout="vertical">
           <div style={{ marginBottom: 16, padding: 12, background: '#f5f5f5', borderRadius: 8 }}>
@@ -732,64 +829,32 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
         </div>
       </Modal>
 
-      {/* 部署记录详情Drawer（点击部署ID打开）：Deployment 列表 -> Pod 列表 */}
-      <Drawer
-        title={`部署详情 - ${showDeployDetail?.deployId ?? ''}`}
-        open={!!showDeployDetail}
-        onClose={() => setShowDeployDetail(null)}
-        width={900}
-      >
-        {showDeployDetail && (
-          <DeploymentDetailContent 
-            deploy={showDeployDetail}
-            onSync={(deploymentName) => handleSync(deploymentName)}
-            onRestart={(deploymentName) => handleRestart(deploymentName)}
-            onViewPodLogs={handleViewPodLogs}
-          />
-        )}
-      </Drawer>
+      {/* 移除 Deployment/Pod Drawer 与 Pod 日志 Drawer */}
 
-      {/* Pod日志Drawer 保持不变 */}
-      <Drawer
-        title={`Pod 日志 - ${showPodLogs?.name}`}
-        open={!!showPodLogs}
-        onClose={() => setShowPodLogs(null)}
-        width={800}
-      >
-        {showPodLogs && (
-          <div>
-            <Descriptions size="small" column={2} style={{ marginBottom: 16 }}>
-              <Descriptions.Item label="Pod名称">{showPodLogs.name}</Descriptions.Item>
-              <Descriptions.Item label="状态">{getPodStatusTag(showPodLogs.status)}</Descriptions.Item>
-              {hasPodRuntimeFields(showPodLogs) && (
-                <>
-                  <Descriptions.Item label="节点">{showPodLogs.node}</Descriptions.Item>
-                  <Descriptions.Item label="重启次数">{showPodLogs.restartCount}</Descriptions.Item>
-                </>
-              )}
-            </Descriptions>
-            <div style={{ background: '#000', color: '#00ff00', padding: 16, borderRadius: 6, fontFamily: 'monospace', fontSize: 12, height: 400, overflow: 'auto' }}>
-              <div>2025-09-05 15:32:00 [INFO] Pod starting...</div>
-              <div>2025-09-05 15:32:05 [INFO] Container image pulled successfully</div>
-              <div>2025-09-05 15:32:10 [INFO] Container started</div>
-              <div>2025-09-05 15:32:15 [INFO] Health check passed</div>
-              <div>2025-09-05 15:32:20 [INFO] Pod ready</div>
-            </div>
-          </div>
-        )}
-      </Drawer>
+      {/* 操作记录 */}
+      {activeTab === 'ops' && (
+        <Card style={{ marginTop: 16 }} title="操作记录">
+          <AntTable
+            size="small"
+            rowKey={(r: OperationLog) => r.id}
+            dataSource={opLogs}
+            pagination={{ pageSize: 5 }}
+            columns={[
+              { title: '操作人', dataIndex: 'operator', key: 'operator', width: 120 },
+              { title: '操作时间', dataIndex: 'time', key: 'time', width: 180 },
+              { title: '操作事件', dataIndex: 'event', key: 'event' },
+              { title: '状态', dataIndex: 'status', key: 'status', width: 120 },
+            ]}
+          />
+        </Card>
+      )}
 
       {/* 评论区域 */}
       <div style={{ marginTop: 24 }}>
         <GiscusComments />
       </div>
 
-      <RollbackModal 
-        open={showRollback.open}
-        onCancel={() => setShowRollback({ open: false })}
-        onConfirm={confirmRollback}
-        title={showRollback.target ? `回滚 - ${showRollback.target}` : '回滚到指定 Commit'}
-      />
+      {/* 已移除 RollbackModal */}
 
     </main>
   )

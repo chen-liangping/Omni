@@ -30,7 +30,7 @@ const initial: ProjectRow[] = [
     repo: 'https://github.com/ctw/omni-Doraemon',
     envs: [
       { name: 'stg', url: 'https://stg.doraemon.com' },
-      // { name: 'prod', url: 'https://doraemon.com' }
+      // 仅 stg 环境
     ]
   },
   { 
@@ -41,7 +41,7 @@ const initial: ProjectRow[] = [
     repo: 'https://github.com/ctw/omni-publisher',
     envs: [
       { name: 'stg', url: 'https://stg.publisher.com' },
-      // { name: 'prod', url: 'https://publisher.com' }
+      // 仅 stg 环境
     ]
   },
 ]
@@ -102,7 +102,7 @@ export default function ProjectsList() {
 
       // 处理环境数据，格式与新增逻辑保持一致
       const envs = (values.envs || []).map((e, index) => ({ 
-        name: index === 0 ? 'stg' : 'prod', 
+        name: 'stg', 
         url: (e.envUrl || '').trim() 
       })).filter(e => e.url)
 
@@ -210,12 +210,12 @@ export default function ProjectsList() {
     const v = await form.validateFields() as { name: string; repo?: string; envs?: Array<{ envUrl?: string }> }
     const id = `p${Date.now()}`
     const createdAt = new Date().toLocaleString('sv-SE') // 格式：YYYY-MM-DD HH:mm:ss
-    // 固定环境名称为 stg 和 prod，只需要填写环境地址
+    // 固定环境名称为 stg，只需要填写环境地址
     const envs = (v.envs || []).map((e, index) => ({ 
-      name: index === 0 ? 'stg' : 'prod', 
+      name: 'stg', 
       url: (e.envUrl || '').trim() 
     })).filter(e => e.url)
-    const envCount = 2 // 固定为两个环境
+    const envCount = 1 // 仅一个环境
     const repo = v.repo ? v.repo.trim() : undefined
     const repos = repo ? [repo] : []
     const newRow: ProjectRow = { id, name: v.name, envCount, createdAt, repo, envs, repos }
@@ -291,10 +291,10 @@ export default function ProjectsList() {
               <div style={{ display: 'grid', gap: 8 }}>
                 <div style={{ fontSize: 12, color: '#6b7280' }}>环境地址（可选：stg）</div>
                 {fields.map((field) => {
-                  const nameLabel = field.name === 0 ? 'stg' : field.name === 1 ? 'prod' : 'env'
+                  const nameLabel = 'stg'
                   return (
                     <div key={field.key} style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
-                      {/* 隐藏环境名称字段，固定为 stg/prod */}
+                      {/* 隐藏环境名称字段，固定为 stg */}
                       <Form.Item {...field} name={[field.name, 'envName']} hidden initialValue={nameLabel}>
                         <Input />
                       </Form.Item>
@@ -348,10 +348,10 @@ export default function ProjectsList() {
               <div style={{ display: 'grid', gap: 8 }}>
                 <div style={{ fontSize: 12, color: '#6b7280' }}>环境地址（可选：stg）</div>
                 {fields.map((field) => {
-                  const nameLabel = field.name === 0 ? 'stg' : field.name === 1 ? 'prod' : 'env'
+                  const nameLabel = 'stg'
                   return (
                     <div key={field.key} style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
-                      {/* 隐藏环境名称字段，固定为 stg/prod */}
+                      {/* 隐藏环境名称字段，固定为 stg */}
                       <Form.Item {...field} name={[field.name, 'envName']} hidden initialValue={nameLabel}>
                         <Input />
                       </Form.Item>

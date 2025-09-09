@@ -274,3 +274,63 @@ npm run dev
 ---
 
 *最后更新：2025年1月15日*
+
+## 🧩 项目初始化（Project Init）
+
+1. 环境准备
+   - Node.js 18+
+   - npm 或 yarn
+2. 安装与启动
+   ```bash
+   npm install
+   npm run dev
+   ```
+3. 本地数据初始化（前端原型，使用 LocalStorage）
+   - 进入 “项目列表” → 点击“新增项目” 完成最小化配置；或使用浏览器控制台快速写入（可选）：
+   ```js
+   // 最小示例，仅供开发期演示
+   localStorage.setItem('omni-projects', JSON.stringify({
+     demo: {
+       id: 'demo', name: 'demo', envCount: 1, createdAt: new Date().toISOString(),
+       repos: ['https://github.com/your/repo']
+     }
+   }))
+   ```
+   - 机器人（Webhook）示例（可选）：
+   ```js
+   localStorage.setItem('omni-webhooks', JSON.stringify([
+     { id: 'bot-1', name: 'Release Bot', enabled: true }
+   ]))
+   ```
+
+---
+
+## 🔗 GitHub 初始化（Discussions / Giscus）
+
+本项目评论功能基于 Giscus（GitHub Discussions）。需在你的仓库完成以下配置：
+
+1. 在 GitHub 仓库启用 Discussions
+   - Settings → General → Discussions → 勾选 “Enable discussions”
+2. 安装并配置 Giscus
+   - 打开 `https://giscus.app`，登录后选择你的仓库
+   - 选择 Discussion 分类（建议：Announcements 或 Q&A）
+   - 记下以下信息（giscus 页面会自动生成）：
+     - repo（形如 `owner/name`）
+     - repo-id
+     - category（名称）
+     - category-id
+3. 在代码中更新 Giscus 配置（如需）
+   - 位置：`src/components/comments/GiscusComments.tsx`
+   - 更新以下属性值：
+   ```ts
+   script.setAttribute('data-repo', 'your/repo')
+   script.setAttribute('data-repo-id', 'REPO_ID')
+   script.setAttribute('data-category', 'Announcements')
+   script.setAttribute('data-category-id', 'CATEGORY_ID')
+   // 其他可选项：mapping/strict/reactions/input-position/theme/lang
+   ```
+   - 本项目已默认配置为 `pathname` 映射：不同页面路径对应不同讨论串。
+
+提示：若你更换了仓库或分类，务必同步更新以上 4 个关键字段，否则评论区将无法正常关联到你的 Discussions。
+
+---
