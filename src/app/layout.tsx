@@ -62,10 +62,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 },
                 {
                   key: 'projects',
-                  label: '项目',
+                  label: '发布与部署',
                   children: [
-                    { key: 'projects-list', label: <Link href="/projects">项目列表</Link> },
-                    { key: 'commits', label: <Link href="/commits">Commit 列表</Link> },
+                    { key: 'projects-list', label: <Link href="/projects">环境一览</Link> },
                     { key: 'webhooks', label: <Link href="/webhooks">Webhook 机器人</Link> },
                   ]
                 }

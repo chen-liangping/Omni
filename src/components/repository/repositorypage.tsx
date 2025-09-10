@@ -2,7 +2,8 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import { Table as AntTable, Button as AntButton, Modal, Form, Input, Select as AntSelect, Progress as AntProgress, Space, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { PlusOutlined } from '@ant-design/icons'
+import type { TablePaginationConfig } from 'antd/es/table/interface'
+import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
 interface Repository { id: string; name: string; group?: string; type: string }
@@ -69,7 +70,53 @@ export default function RepositoriesPage() {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showInitDialog, setShowInitDialog] = useState(false)
   const [selectedRepoId, setSelectedRepoId] = useState('')
-  const { data: repositories = [] } = useQuery<Repository[]>({ queryKey: ['repositories'], queryFn: async () => [{ id: '1', name: 'omni-frontend', group: 'team-a', type: 'frontend-micro' }, { id: '2', name: 'omni-backend', group: 'team-b', type: 'backend-micro' }] })
+  const { data: repositories = [] } = useQuery<Repository[]>({
+    queryKey: ['repositories'],
+    queryFn: async () => [
+      { id: '1', name: 'omni-frontend', group: 'team-a', type: 'frontend-micro' },
+      { id: '2', name: 'omni-backend', group: 'team-b', type: 'backend-micro' },
+      { id: '3', name: 'order-service', group: 'team-a', type: 'backend-micro' },
+      { id: '4', name: 'user-service', group: 'team-b', type: 'backend-micro' },
+      { id: '5', name: 'payment-api', group: 'team-a', type: 'backend-micro' },
+      { id: '6', name: 'inventory-service', group: 'team-b', type: 'backend-micro' },
+      { id: '7', name: 'notification-service', group: 'team-a', type: 'backend-micro' },
+      { id: '8', name: 'auth-service', group: 'team-b', type: 'backend-micro' },
+      { id: '9', name: 'reporting-ui', group: 'team-a', type: 'frontend-only' },
+      { id: '10', name: 'marketing-site', group: 'team-b', type: 'frontend-only' },
+      { id: '11', name: 'profile-ui', group: 'team-a', type: 'frontend-micro' },
+      { id: '12', name: 'checkout-ui', group: 'team-b', type: 'frontend-micro' },
+      { id: '13', name: 'recommendation-service', group: 'team-a', type: 'backend-micro' },
+      { id: '14', name: 'billing-service', group: 'team-b', type: 'backend-micro' },
+      { id: '15', name: 'search-service', group: 'team-a', type: 'backend-micro' },
+      { id: '16', name: 'feed-service', group: 'team-b', type: 'backend-micro' },
+      { id: '17', name: 'cms-ui', group: 'team-a', type: 'frontend-only' }
+    ]
+  })
+
+  // 顶部工具条状态：项目筛选 + 搜索关键字
+  const [selectedProject, setSelectedProject] = useState<string>('all')
+  const [searchKeyword, setSearchKeyword] = useState<string>('')
+
+  // 分页状态（受控）
+  const [currentPage, setCurrentPage] = useState<number>(1)
+  const [pageSize, setPageSize] = useState<number>(10)
+
+  // 模拟的项目选项；使用 Repository.group 作为项目的近似字段
+  const projectOptions: { label: string; value: string }[] = [
+    { label: '全部项目', value: 'all' },
+    { label: 'Team A', value: 'team-a' },
+    { label: 'Team B', value: 'team-b' }
+  ]
+
+  // 基于项目与搜索的本地筛选
+  const filteredRepositories: Repository[] = repositories.filter((repo: Repository) => {
+    const inProject = selectedProject === 'all' || repo.group === selectedProject
+    const inSearch = searchKeyword.trim() === '' || repo.name.toLowerCase().includes(searchKeyword.trim().toLowerCase())
+    return inProject && inSearch
+  })
+
+  const totalItems: number = filteredRepositories.length
+  const pagedRepositories: Repository[] = filteredRepositories.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   const handleInitialize = (repoId: string) => { setSelectedRepoId(repoId); setShowInitDialog(true) }
   const columns: ColumnsType<Repository> = [
@@ -106,13 +153,51 @@ export default function RepositoriesPage() {
 
   return (
     <main style={{ padding: 24 }}>
+      {/* 顶部：左侧项目选择器+搜索；右侧新增按钮 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h1 style={{ color: 'var(--heading)', margin: 0 }}>仓库管理</h1>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <AntSelect
+            style={{ width: 200 }}
+            options={projectOptions}
+            value={selectedProject}
+            // 切换项目时重置到第 1 页
+            onChange={(value: string) => { setSelectedProject(value); setCurrentPage(1) }}
+          />
+          <Input
+            style={{ width: 320 }}
+            placeholder="搜索仓库"
+            allowClear
+            prefix={<SearchOutlined />}
+            value={searchKeyword}
+            // 输入搜索时重置到第 1 页
+            onChange={(e) => { setSearchKeyword(e.target.value); setCurrentPage(1) }}
+          />
+        </div>
         <div>
           <AntButton icon={<PlusOutlined />} onClick={() => setShowCreateDialog(true)}>新增仓库</AntButton>
         </div>
       </div>
-      <AntTable rowKey="id" columns={columns} dataSource={repositories} />
+      <AntTable
+        rowKey="id"
+        columns={columns}
+        dataSource={pagedRepositories}
+        pagination={{
+          current: currentPage,
+          pageSize,
+          total: totalItems,
+          showSizeChanger: true,
+          pageSizeOptions: [5, 10, 20, 50],
+          showTotal: (total) => `共 ${total} 个仓库`,
+          hideOnSinglePage: false
+        }}
+        // 同步分页状态
+        onChange={(pagination: TablePaginationConfig) => {
+          const nextCurrent: number = pagination.current ?? 1
+          const nextPageSize: number = pagination.pageSize ?? pageSize
+          setCurrentPage(nextCurrent)
+          setPageSize(nextPageSize)
+        }}
+      />
       <CreateRepoDialog visible={showCreateDialog} onClose={() => setShowCreateDialog(false)} />
       <InitializeDialog repoId={selectedRepoId} visible={showInitDialog} onClose={() => setShowInitDialog(false)} />
     </main>

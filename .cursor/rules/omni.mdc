@@ -1,0 +1,12 @@
+---
+alwaysApply: true
+metadata:
+  port: 8080
+  timeFormat: "YYYY-MM-DD HH:mm:ss"
+  timeExample: "2025-03-21 14:55:37"
+  people: ["张搬搬", "何牛牛", "石头", "常大智"]
+---
+
+- 部署端口: 8080
+- 时间格式: 2025-03-21 14:55:37
+- 人员: 张搬搬、何牛牛、石头、常大智
