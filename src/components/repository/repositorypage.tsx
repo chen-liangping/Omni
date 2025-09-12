@@ -154,7 +154,7 @@ export default function RepositoriesPage() {
   ]
 
   return (
-    <main style={{ padding: 24 }}>
+    <main style={{ padding: '24px 24px 24px 10px' }}>
       {/* 顶部：左侧项目选择器+搜索；右侧新增按钮 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>

@@ -3,7 +3,7 @@ import React, { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Table as AntTable, Button as AntButton, Space, Tag, Popconfirm, App as AntApp, Modal, Form, Input, Select as AntSelect, Drawer, Tabs } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { SettingOutlined, PlusOutlined, MinusCircleOutlined } from '@ant-design/icons'
+import { SettingOutlined, PlusOutlined, MinusCircleOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
 
 interface DeployRecord {
   id: string;
@@ -27,6 +27,7 @@ interface RepoMeta {
 export default function ProjectDetail({ projectId }: { projectId: string }) {
   const { message: msg, notification } = AntApp.useApp()
   const [activeTabKey, setActiveTabKey] = useState<'active-branch' | 'deployments'>('active-branch')
+  const [simulateCiFail, setSimulateCiFail] = useState<boolean>(false)
   // 设置弹窗（仅 Dev 环境）
   type EnvVar = { key: string; value: string }
   const [envModalOpen, setEnvModalOpen] = useState<boolean>(false)
@@ -49,6 +50,8 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
 
   // 当前生效分支最近一次的 commit（用于日志展示）
   const activeCommit = (records.find(r => r.branch === repoMeta.activeBranch) ?? records[0])?.commitId ?? shortCommitId
+  const activeRecord = (records.find(r => r.branch === repoMeta.activeBranch && r.commitId === activeCommit) ?? records.find(r => r.branch === repoMeta.activeBranch) ?? records[0])
+  const ciOk = !simulateCiFail && activeRecord?.status === '成功'
 
   // 日志 Drawer 状态
   const [logDrawerOpen, setLogDrawerOpen] = useState<boolean>(false)
@@ -151,10 +154,30 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
                     {/* 信息卡操作区：仅在“当前生效分支”tab展示 */}
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
                       <AntButton onClick={() => msg.success('已触发重新部署')}>🔄 重新部署</AntButton>
-                      <Popconfirm title="停用/删除" description="确定要停用/删除该仓库？" okText="删除" cancelText="取消" onConfirm={() => msg.warning('仓库已停用/删除')}>
-                        <AntButton danger>🗑 停用</AntButton>
-                      </Popconfirm>
                     </div>
+                  </div>
+                  {/* CI 结果区：只展示结果；失败给 GitHub 链接 */}
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <div style={{ fontSize: 16, fontWeight: 600 }}>CI 构建</div>
+                      <AntButton type="link" size="small" onClick={() => setSimulateCiFail((v) => !v)}>
+                        {simulateCiFail ? '恢复成功' : '模拟失败'}
+                      </AntButton>
+                    </div>
+                    {ciOk ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+                        <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                        <span>构建成功</span>
+                        <span style={{ fontSize: 12, color: '#666' }}>{`Commit ${activeRecord?.commitId}`}</span>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+                        <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
+                        <span>构建失败</span>
+                        <span style={{ fontSize: 12, color: '#666' }}>{`Commit ${activeRecord?.commitId}`}</span>
+                        <a href={`https://github.com/company/${repoMeta.name}/actions`} target="_blank" rel="noreferrer" style={{ marginLeft: 8 }}>查看 GitHub Actions</a>
+                      </div>
+                    )}
                   </div>
                   {/* 当前生效分支的实时日志展示（文本） */}
                   <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>部署日志</div>

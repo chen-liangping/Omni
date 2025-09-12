@@ -2,10 +2,10 @@
 import React, { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Table as AntTable, Button as AntButton, Space, Tag, Popover, Input, Checkbox, Divider, Empty, Popconfirm, App as AntApp, Pagination as AntPagination } from 'antd'
+import { Table as AntTable, Button as AntButton, Space, Tag, Popover, Input, Checkbox, Divider, Empty, Popconfirm, App as AntApp, Pagination as AntPagination, Drawer, Form, Select as AntSelect } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { TablePaginationConfig } from 'antd/es/table/interface'
-import { ReloadOutlined, EyeOutlined, DeleteOutlined, StarFilled, StarOutlined, DownOutlined, SearchOutlined, BranchesOutlined, DotChartOutlined } from '@ant-design/icons'
+import { ReloadOutlined, EyeOutlined, DeleteOutlined, StarFilled, StarOutlined, DownOutlined, SearchOutlined, BranchesOutlined, DotChartOutlined, PlusOutlined, MinusCircleOutlined } from '@ant-design/icons'
 
 interface RepoEnvRow {
   repoId: string;
@@ -83,6 +83,36 @@ export default function BranchesList() {
     return searchedData.slice(start, start + pageSize)
   }, [searchedData, currentPage, pageSize])
 
+  // 环境配置 Drawer：选择多条 记录（仓库 + 仓库分支）
+  const [envDrawerOpen, setEnvDrawerOpen] = useState<boolean>(false)
+  const [envPairs, setEnvPairs] = useState<{ repoId: string; branch: string }[]>([])
+  const [envForm] = Form.useForm()
+  // 生成每个仓库的分支列表（原型：从 activeBranch + 常见分支构造去重列表）
+  const repoIdToBranches: Record<string, string[]> = useMemo(() => {
+    const common = ['main', 'develop', 'release-1.0']
+    const map: Record<string, string[]> = {}
+    rows.forEach((r) => {
+      const uniq = Array.from(new Set([r.activeBranch, ...common]))
+      map[r.repoId] = uniq
+    })
+    return map
+  }, [rows])
+  const repoOptions = useMemo(() => rows.map(r => ({ label: r.repoName, value: r.repoId })), [rows])
+  const handleOpenEnvDrawer = () => {
+    const defaultRepoId = rows[0]?.repoId ?? ''
+    const defaultBranch = defaultRepoId ? (repoIdToBranches[defaultRepoId]?.[0] ?? '') : ''
+    const initPairs = envPairs.length > 0 ? envPairs : (defaultRepoId ? [{ repoId: defaultRepoId, branch: defaultBranch }] : [])
+    setEnvDrawerOpen(true)
+    envForm.setFieldsValue({ pairs: initPairs })
+  }
+  const handleSaveEnvConfig = async () => {
+    const values = await envForm.validateFields()
+    const pairs = (values.pairs as { repoId: string; branch: string }[]) || []
+    setEnvPairs(pairs)
+    setEnvDrawerOpen(false)
+    msg.success(`已保存环境配置（${pairs.length} 条）`)
+  }
+
   const columns: ColumnsType<RepoEnvRow> = [
     {
       title: '仓库名',
@@ -154,21 +184,6 @@ export default function BranchesList() {
             >
               <AntButton type="link" icon={<ReloadOutlined />}>重新部署</AntButton>
             </Popconfirm>
-            {isStopped ? (
-              <AntButton type="link" icon={<DeleteOutlined />} disabled>停用</AntButton>
-            ) : (
-              <Popconfirm
-                title="是否停用当前环境"
-                okText="确定"
-                cancelText="取消"
-                onConfirm={() => {
-                  setRows((prev) => prev.map((r) => r.repoId === record.repoId ? { ...r, status: 'stopped' } : r))
-                  msg.success('已停用当前环境')
-                }}
-              >
-                <AntButton type="link" icon={<DeleteOutlined />} danger>停用</AntButton>
-              </Popconfirm>
-            )}
         </Space>
       )
       }
@@ -215,15 +230,15 @@ export default function BranchesList() {
   )
 
   return (
-    <main style={{ padding: 24 }}>
+    <main style={{ padding: '24px 24px 24px 10px' }}>
       {/* 顶部工具条：项目切换器 + 仓库搜索 + 右侧刷新 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <Space size={12} align="center">
-          <Popover trigger={['click']} placement="bottomLeft" content={projectListContent} overlayStyle={{ padding: 0 }}>
+         {/* <Popover trigger={['click']} placement="bottomLeft" content={projectListContent} overlayStyle={{ padding: 0 }}>
             <AntButton type="default" size="middle" icon={<DownOutlined />} iconPosition="end">
               {allProjects.find(p => p.id === currentProjectId)?.name || '选择项目'}
             </AntButton>
-          </Popover>
+          </Popover> */}
           <Input
             style={{ width: 320 }}
             placeholder="搜索仓库"
@@ -233,9 +248,10 @@ export default function BranchesList() {
             onChange={(e) => { setRepoSearch(e.target.value); setCurrentPage(1) }}
           />
         </Space>
-        <div>
+        <Space>
+          <AntButton onClick={handleOpenEnvDrawer}>环境配置</AntButton>
           <AntButton icon={<ReloadOutlined />} onClick={() => msg.success('已刷新')}>刷新</AntButton>
-        </div>
+        </Space>
       </div>
 
       <h1 style={{ color: 'var(--heading)', margin: 0, marginBottom: 12 }}>环境一览</h1>
@@ -296,26 +312,6 @@ export default function BranchesList() {
               {/* 操作区：按钮需要阻止冒泡，避免触发卡片点击 */}
               <Space>
                 <Popconfirm
-                  title="是否停用当前环境"
-                  okText="确定"
-                  cancelText="取消"
-                  onConfirm={(e) => {
-                    setRows((prev) => prev.map((r) => r.repoId === record.repoId ? { ...r, status: 'stopped' } : r))
-                    msg.success('已停用当前环境')
-                  }}
-                >
-                  <AntButton
-                    type="default"
-                    danger
-                    disabled={isStopped}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    停用
-                  </AntButton>
-                </Popconfirm>
-
-                <Popconfirm
                   title="是否重新部署当前分支"
                   okText="确定"
                   cancelText="取消"
@@ -361,6 +357,50 @@ export default function BranchesList() {
           onChange={(p, s) => { setCurrentPage(p); setPageSize(s) }}
         />
       </div>
+      {/* 环境配置 Drawer：可多选 仓库+分支 */}
+      <Drawer
+        title="环境配置"
+        open={envDrawerOpen}
+        onClose={() => setEnvDrawerOpen(false)}
+        width={560}
+      >
+        <div style={{ color: '#666', marginBottom: 12 }}>每一行表示一条记录：仓库 — 仓库分支。</div>
+        <Form form={envForm} layout="vertical" initialValues={{ pairs: envPairs }}>
+          <Form.List name="pairs">
+            {(fields, { add, remove }) => (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {fields.map(({ key, name, ...rest }) => {
+                  const currentRepoId: string = envForm.getFieldValue(['pairs', name, 'repoId']) || ''
+                  const branchOptions = (repoIdToBranches[currentRepoId] || []).map(b => ({ label: b, value: b }))
+                  return (
+                    <div key={key} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 12, alignItems: 'end' }}>
+                      <Form.Item {...rest} name={[name, 'repoId']} label={name === 0 ? '仓库' : undefined} rules={[{ required: true, message: '请选择仓库' }]}> 
+                        <AntSelect options={repoOptions} placeholder="选择仓库" onChange={(rid: string) => {
+                          const firstBranch = (repoIdToBranches[rid] || [])[0] || ''
+                          envForm.setFields([{ name: ['pairs', name, 'branch'], value: firstBranch }])
+                        }} />
+                      </Form.Item>
+                      <Form.Item {...rest} name={[name, 'branch']} label={name === 0 ? '仓库分支' : undefined} rules={[{ required: true, message: '请选择分支' }]}> 
+                        <AntSelect options={branchOptions} placeholder="选择分支" />
+                      </Form.Item>
+                      <AntButton type="text" icon={<MinusCircleOutlined />} danger onClick={() => remove(name)} />
+                    </div>
+                  )
+                })}
+                <AntButton icon={<PlusOutlined />} onClick={() => {
+                  const rid = rows[0]?.repoId || ''
+                  const b0 = rid ? (repoIdToBranches[rid]?.[0] || '') : ''
+                  add({ repoId: rid, branch: b0 })
+                }}>新增一条</AntButton>
+              </div>
+            )}
+          </Form.List>
+        </Form>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+          <AntButton onClick={() => setEnvDrawerOpen(false)}>取消</AntButton>
+          <AntButton type="primary" onClick={handleSaveEnvConfig}>保存配置</AntButton>
+        </div>
+      </Drawer>
     </main>
   )
 }

@@ -35,5 +35,16 @@ main {
   padding: 0; /* 内边距交给布局或具体组件 */
 }
 
+/* 防止主容器内部元素撑破：默认让内容在容器内换行/不溢出 */
+.cards-grid, main, .ant-table, .ant-row, .ant-space {
+  max-width: 100%;
+}
+.ant-space, .ant-row {
+  flex-wrap: wrap;
+}
+.ant-btn {
+  white-space: nowrap;
+}
+
 a { color: var(--accent); }
 

@@ -2,6 +2,7 @@ import './globals.css'
 import { ReactNode } from 'react'
 import { Inter } from 'next/font/google'
 import { Providers } from '@/omni'
+import Comments from '@/components/comments'
 import { UserAvatarMenu } from '@/omni'
 import { Menu } from 'antd'
 import Link from 'next/link'
@@ -68,10 +69,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                     { key: 'webhooks', label: <Link href="/webhooks">Webhook 机器人</Link> },
                   ]
                 }
-               /*   
-               { key: 'pipeline', label: <Link href="/pipeline">流水线</Link> },
-                { key: 'release', label: <Link href="/release">定时发布</Link> }
-                 */
+               /* 预留扩展位 */
                 
               ]}
             />
@@ -89,12 +87,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
             <AppHeader />
 
-            <div style={{ display: 'flex', flex: 1, gap: 12, padding: 12 }}>
+            <div style={{ display: 'flex', flex: 1, gap: 12, padding: 12, boxSizing: 'border-box', overflow: 'hidden' }}>
               <AppSidebar />
-              <main style={{ flex: 1 }}>
+              <main style={{ flex: 1, minWidth: 0 }}>
                 {/* 主内容卡片容器：白底、圆角、阴影；与侧栏之间的 gap 让背景透出 */}
-                <div style={{ background: '#fff', borderRadius: 12, boxShadow: '0 8px 28px rgba(0,0,0,0.08)', padding: 16, minHeight: 80 }}>
+                <div style={{ background: '#fff', borderRadius: 12, boxShadow: '0 8px 28px rgba(0,0,0,0.08)', padding: '16px 16px 16px 6px', minHeight: 80, overflow: 'hidden' }}>
                   {children}
+                  {/* 全局挂载 Giscus：文章/页面底部都显示讨论区 */}
+                  <Comments />
                 </div>
               </main>
             </div>

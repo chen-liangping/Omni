@@ -37,7 +37,7 @@ export default function RepositoryApiCalls() {
   ]
 
   return (
-    <main style={{ padding: 24 }}>
+    <main style={{ padding: '24px 24px 24px 10px' }}>
       <h1 style={{ color: 'var(--heading)', marginBottom: 16 }}>接口调用情况</h1>
       <AntTable<ApiCallRecord>
         rowKey={(r) => r.id}

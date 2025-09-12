@@ -98,7 +98,7 @@ export default function WebhookList() {
   }
 
   return (
-    <main style={{ padding: 24 }}>
+    <main style={{ padding: '24px 24px 24px 10px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h1 style={{ color: 'var(--heading)', margin: 0 }}>Webhook 机器人</h1>
         <Space>
