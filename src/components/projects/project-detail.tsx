@@ -1,7 +1,7 @@
 "use client"
 import React, { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Table as AntTable, Button as AntButton, Space, Tag, Popconfirm, message, Modal, Form, Input, Select as AntSelect, Drawer, Tabs } from 'antd'
+import { Table as AntTable, Button as AntButton, Space, Tag, Popconfirm, App as AntApp, Modal, Form, Input, Select as AntSelect, Drawer, Tabs } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { SettingOutlined, PlusOutlined, MinusCircleOutlined } from '@ant-design/icons'
 
@@ -25,6 +25,8 @@ interface RepoMeta {
 // 这段代码实现了项目详情页，使用了 Ant Design 表格、按钮与标签
 // 代码说明：顶部展示仓库信息（生效分支、环境URL、最新部署时间、最后部署人、Commit ID 链接）；下方为部署记录表，含日志详情、重新部署、删除记录
 export default function ProjectDetail({ projectId }: { projectId: string }) {
+  const { message: msg, notification } = AntApp.useApp()
+  const [activeTabKey, setActiveTabKey] = useState<'active-branch' | 'deployments'>('active-branch')
   // 设置弹窗（仅 Dev 环境）
   type EnvVar = { key: string; value: string }
   const [envModalOpen, setEnvModalOpen] = useState<boolean>(false)
@@ -34,7 +36,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     name: projectId === '1' ? 'order-service' : projectId === '2' ? 'user-service' : 'payment-api',
     activeBranch: projectId === '1' ? 'feature/login-fix' : projectId === '2' ? 'release-1.0' : 'hotfix-22',
     envUrl: projectId === '1' ? 'order-service-feature-login-fix.stg.g123.jp' : projectId === '2' ? 'user-service-release-1-0.stg.g123.jp' : 'payment-api-hotfix-22.stg.g123.jp',
-    latestDeployAt: projectId === '1' ? '09/10 14:32' : projectId === '2' ? '09/09 11:15' : '09/05 19:42',
+    latestDeployAt: projectId === '1' ? '2025-03-21 14:55:37' : projectId === '2' ? '2025-09-09 11:15:00' : '2025-09-05 19:42:00',
     lastDeployer: projectId === '1' ? '李铁' : projectId === '2' ? '牛牛' : '斑斑',
   }
 
@@ -44,6 +46,9 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     { id: 'log-2', time: '2025-03-21 14:55:37', branch: repoMeta.activeBranch, commitId: 'z9y8x7w', status: '失败', operator: repoMeta.lastDeployer },
     { id: 'log-3', time: '2025-03-21 14:55:37', branch: 'bugfix-123', commitId: 'l4m5n6o', status: '成功', operator: '斑斑' },
   ]
+
+  // 当前生效分支最近一次的 commit（用于日志展示）
+  const activeCommit = (records.find(r => r.branch === repoMeta.activeBranch) ?? records[0])?.commitId ?? shortCommitId
 
   // 日志 Drawer 状态
   const [logDrawerOpen, setLogDrawerOpen] = useState<boolean>(false)
@@ -80,7 +85,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     { title: '部署时间', dataIndex: 'time', key: 'time', width: 180 },
     { title: '操作', key: 'actions', width: 140, render: (_: unknown, record: DeployRecord) => (
       <Space>
-        <Popconfirm title="删除记录" description="确定删除该部署记录？" okText="删除" cancelText="取消" onConfirm={() => message.success('记录已删除')}>
+        <Popconfirm title="删除记录" description="确定删除该部署记录？" okText="删除" cancelText="取消" onConfirm={() => msg.success('记录已删除')}>
           <AntButton
             type="link"
             danger
@@ -105,45 +110,90 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
         <Space>
           {/* 打开环境变量设置弹窗（仅 Dev） */}
           <AntButton icon={<SettingOutlined />} onClick={() => { setEnvModalOpen(true); form.setFieldsValue({ devBranch, envs: devEnvVars }) }}>设置</AntButton>
-          <AntButton onClick={() => message.success('已触发重新部署')}>🔄 重新部署</AntButton>
-          <Popconfirm title="停用/删除" description="确定要停用/删除该仓库？" okText="删除" cancelText="取消" onConfirm={() => message.warning('仓库已停用/删除')}>
-            <AntButton danger>🗑 停用</AntButton>
-          </Popconfirm>
         </Space>
-      </div>
-
-      <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 8, padding: 16, marginBottom: 16 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-          <div>
-            <div style={{ color: '#2f3542', fontWeight: 800, marginBottom: 8 }}>当前生效分支</div>
-            <Tag color="blue">{repoMeta.activeBranch}</Tag>
-          </div>
-          <div>
-            <div style={{ color: '#2f3542', fontWeight: 800, marginBottom: 8 }}>环境 URL</div>
-            <div style={{ fontFamily: 'monospace' }}>{repoMeta.envUrl}</div>
-          </div>
-          <div>
-            <div style={{ color: '#2f3542', fontWeight: 800, marginBottom: 8 }}>最新部署时间</div>
-            <div>{repoMeta.latestDeployAt}</div>
-          </div>
-          <div>
-            <div style={{ color: '#2f3542', fontWeight: 800, marginBottom: 8 }}>最后部署人</div>
-            <div>{repoMeta.lastDeployer}</div>
-          </div>
-          <div>
-            <div style={{ color: '#2f3542', fontWeight: 800, marginBottom: 8 }}>Commit ID</div>
-            <a href="#" onClick={(e) => { e.preventDefault(); message.info(`打开 Commit ${shortCommitId}`) }}>{shortCommitId}</a>
-          </div>
-        </div>
       </div>
 
       <div>
         <Tabs
           type="card"
+          activeKey={activeTabKey}
+          onChange={(k) => setActiveTabKey(k as 'active-branch' | 'deployments')}
           items={[
             {
+              key: 'active-branch',
+              label: '当前生效分支',
+              children: (
+                <div>
+                  {/* 顶部信息卡：当前生效分支与元信息 */}
+                  <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+                    <div>
+                        <div style={{ color: '#2f3542', fontWeight: 800, marginBottom: 8 }}>环境 URL</div>
+                        <div style={{ color: '#1e90ff', fontFamily: 'monospace' }}>{repoMeta.envUrl}</div>
+                      </div>
+                      <div>
+                        <div style={{ color: '#2f3542', fontWeight: 800, marginBottom: 8 }}>当前生效分支</div>
+                        <Tag color="blue">{repoMeta.activeBranch}</Tag>
+                      </div>
+                      <div>
+                        <div style={{ color: '#2f3542', fontWeight: 800, marginBottom: 8 }}>Commit ID</div>
+                        <a href="#" onClick={(e) => { e.preventDefault(); msg.info(`打开 Commit ${shortCommitId}`) }}>{shortCommitId}</a>
+                      </div>
+                      <div>
+                        <div style={{ color: '#2f3542', fontWeight: 800, marginBottom: 8 }}>最新部署时间</div>
+                        <div>{repoMeta.latestDeployAt}</div>
+                      </div>
+                      <div>
+                        <div style={{ color: '#2f3542', fontWeight: 800, marginBottom: 8 }}>最后部署人</div>
+                        <div>{repoMeta.lastDeployer}</div>
+                      </div>
+                    </div>
+                    {/* 信息卡操作区：仅在“当前生效分支”tab展示 */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
+                      <AntButton onClick={() => msg.success('已触发重新部署')}>🔄 重新部署</AntButton>
+                      <Popconfirm title="停用/删除" description="确定要停用/删除该仓库？" okText="删除" cancelText="取消" onConfirm={() => msg.warning('仓库已停用/删除')}>
+                        <AntButton danger>🗑 停用</AntButton>
+                      </Popconfirm>
+                    </div>
+                  </div>
+                  {/* 当前生效分支的实时日志展示（文本） */}
+                  <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>部署日志</div>
+                  <div style={{ fontFamily: 'monospace', background: '#f1f2f6', color: '#2c3e50', padding: 16, borderRadius: 8, whiteSpace: 'pre-wrap' }}>
+{`[17:01:15.735] Running build in Washington, D.C., USA (East) – iad1
+[17:01:15.735] Build machine configuration: 2 cores, 8 GB
+[17:01:15.780] Cloning github.com/chen-liangping/Publisher_demo (Branch: vercel, Commit: 1b8052b)
+[17:01:16.242] Cloning completed: 461.000ms
+[17:01:19.199] Restored build cache from previous deployment (DYwMp2ACh3EosSAW4zyPWnbtq1Q1)
+[17:01:19.903] Running "vercel build"
+[17:01:20.301] Vercel CLI 47.1.1
+[17:01:20.778] Installing dependencies...
+[17:01:22.247] 
+[17:01:22.248] up to date in 1s
+[17:01:22.248] 
+[17:02:11.013] 20:3  Warning: 'Tag' is defined but never used.  @typescript-eslint/no-unused-vars
+[17:02:11.014] 22:3  Warning: 'Collapse' is defined but never used.  @typescript-eslint/no-unused-vars
+[17:02:11.014] 23:3  Warning: 'Cascader' is defined but never used.  @typescript-eslint/no-unused-vars
+[17:02:11.014] 25:3  Warning: 'List' is defined but never used.  @typescript-eslint/no-unused-vars
+[17:02:11.014] 26:3  Warning: 'Radio' is defined but never used.  @typescript-eslint/no-unused-vars
+[17:02:11.014] 31:15  Warning: 'TableRowSelection' is defined but never used.  @typescript-eslint/no-unused-vars
+[17:02:11.014] 42:3  Warning: 'ReloadOutlined' is defined but never used.  @typescript-eslint/no-unused-vars
+[17:02:11.014] 43:3  Warning: 'UndoOutlined' is defined but never used.  @typescript-eslint/no-unused-vars
+[17:02:11.014] 69:7  Warning: 'isEmptyMatrixRow' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+[17:02:11.015] 113:7  Warning: 'CDNNoticeList' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+[17:02:11.015] 148:10  Warning: 'webhookSelectionAlarmRow' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+[17:02:11.015] 148:36  Warning: 'setWebhookSelectionAlarmRow' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+[17:02:11.015] 149:10  Warning: 'webhookSelectionReminderRow' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+[17:02:11.015] 149:39  Warning: 'setWebhookSelectionReminderRow' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+[17:02:11.015] 151:10  Warning: 'webhookModalMode' is assigned a value but never used.  @typescript-eslint/no-unused-vars
+[17:02:11.016] info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+[17:02:11.049] Error: Command "npm run build" exited with 1`}
+                  </div>
+                </div>
+              )
+            },
+            {
               key: 'deployments',
-              label: '部署记录',
+              label: '历史部署记录',
               children: (
                 <AntTable<DeployRecord>
                   rowKey={(r) => r.id}
@@ -167,7 +217,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
           setDevEnvVars((values.envs as EnvVar[] | undefined) ?? [])
           setDevBranch(values.devBranch as string)
           setEnvModalOpen(false)
-          message.success('Dev 环境设置已保存')
+          msg.success('Dev 环境设置已保存')
         }}
         okText="保存"
         cancelText="取消"
@@ -238,8 +288,8 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
 {`[14:32:01] 开始部署任务\n...[14:32:02] 拉取代码：git clone https://git.company.com/${repoMeta.name}.git\n...[14:32:05] 检出分支：${activeLog.branch} (commit ${activeLog.commitId})\n...[14:32:10] 构建镜像：docker build -t ${repoMeta.name}:${activeLog.commitId} .\n...[14:32:30] 推送镜像：registry.company.com/${repoMeta.name}:${activeLog.commitId}\n...[14:32:45] 应用部署配置：k8s/${repoMeta.name}-deploy.yaml\n...[14:33:00] 等待 Pod 就绪...\n...[14:33:10] Pod (${repoMeta.name}-abc123) 启动成功\n...[14:33:15] 健康检查通过\n...[14:33:16] 部署完成 ✅`}
             </div>
             <div style={{ marginTop: 12, display: 'flex', gap: 12 }}>
-              <AntButton onClick={() => message.success('已下载日志文件')}>⬇ 下载日志文件</AntButton>
-              <AntButton onClick={() => message.success(`已触发重新部署 ${activeLog.commitId}`)}>🔄 重新部署此 commit</AntButton>
+              <AntButton onClick={() => msg.success('已下载日志文件')}>⬇ 下载日志文件</AntButton>
+              <AntButton onClick={() => msg.success(`已触发重新部署 ${activeLog.commitId}`)}>🔄 重新部署此 commit</AntButton>
             </div>
           </div>
         )}

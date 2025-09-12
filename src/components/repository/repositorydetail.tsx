@@ -1,6 +1,6 @@
 "use client"
 import React, { useState } from 'react'
-import { Checkbox, Collapse, Tabs, Alert, Table as AntTable, Button as AntButton, Space, Modal, Form, Input, Popconfirm, message } from 'antd'
+import { Checkbox, Collapse, Tabs, Alert, Table as AntTable, Button as AntButton, Space, Modal, Form, Input, Popconfirm, App as AntApp } from 'antd'
 import { DownOutlined, RightOutlined, CheckCircleOutlined, ExclamationCircleOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useQuery } from '@tanstack/react-query'
@@ -37,6 +37,7 @@ interface Branch {
 }
 
 export default function RepositoryDetailPage({ repoId: propRepoId }: { repoId?: string }) {
+  const { message: msg } = AntApp.useApp()
   const repoId = propRepoId ?? '';
   const [activeTab, setActiveTab] = useState("branches");
   // 显式初始化对象并通过常量声明标注类型，避免在 useState 上传入泛型
@@ -112,7 +113,7 @@ export default function RepositoryDetailPage({ repoId: propRepoId }: { repoId?: 
       setBranches(prev => [newBranch, ...prev]);
       setShowCreateBranch(false);
       branchForm.resetFields();
-      message.success('分支创建成功');
+      msg.success('分支创建成功');
     } catch (error) {
       console.error('创建分支失败:', error);
     }
@@ -120,7 +121,7 @@ export default function RepositoryDetailPage({ repoId: propRepoId }: { repoId?: 
 
   const handleDeleteBranch = (branchId: string, branchName: string) => {
     setBranches(prev => prev.filter(branch => branch.id !== branchId));
-    message.success(`分支 ${branchName} 已删除`);
+    msg.success(`分支 ${branchName} 已删除`);
   };
 
   const branchColumns: ColumnsType<Branch> = [

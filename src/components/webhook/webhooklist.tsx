@@ -1,6 +1,6 @@
 "use client"
 import React, { useEffect, useMemo, useState } from 'react'
-import { Table as AntTable, Button as AntButton, Space, Tag, Modal, Form, Input, Checkbox, message } from 'antd'
+import { Table as AntTable, Button as AntButton, Space, Tag, Modal, Form, Input, Checkbox, App as AntApp } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 
 /**
@@ -14,6 +14,7 @@ interface Robot { id: string; name: string; url: string; secret?: string; enable
 const STORAGE_KEY = 'omni-webhooks'
 
 export default function WebhookList() {
+  const { message: msg } = AntApp.useApp()
   const [rows, setRows] = useState<Robot[]>([])
   const [show, setShow] = useState(false)
   const [editing, setEditing] = useState<Robot | null>(null)
@@ -76,7 +77,7 @@ export default function WebhookList() {
       onOk: () => {
         const next = rows.filter(x => x.id !== id)
         save(next)
-        message.success('已删除')
+        msg.success('已删除')
       }
     })
   }
@@ -86,12 +87,12 @@ export default function WebhookList() {
     if (editing) {
       const next = rows.map(x => x.id === editing.id ? { ...editing, ...v, enabled: !!v.enabled } : x)
       save(next)
-      message.success('已更新')
+      msg.success('已更新')
     } else {
       const id = `rb_${Date.now()}`
       const next = [{ id, name: v.name, url: v.url, secret: v.secret, enabled: !!v.enabled }, ...rows]
       save(next)
-      message.success('已新增')
+      msg.success('已新增')
     }
     setShow(false)
   }

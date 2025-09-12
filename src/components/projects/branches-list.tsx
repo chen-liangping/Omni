@@ -1,7 +1,8 @@
 "use client"
 import React, { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Table as AntTable, Button as AntButton, Space, Tag, message, Popover, Input, Checkbox, Divider, Empty } from 'antd'
+import { useRouter } from 'next/navigation'
+import { Table as AntTable, Button as AntButton, Space, Tag, Popover, Input, Checkbox, Divider, Empty, Popconfirm, App as AntApp, Pagination as AntPagination } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { TablePaginationConfig } from 'antd/es/table/interface'
 import { ReloadOutlined, EyeOutlined, DeleteOutlined, StarFilled, StarOutlined, DownOutlined, SearchOutlined, BranchesOutlined, DotChartOutlined } from '@ant-design/icons'
@@ -12,6 +13,8 @@ interface RepoEnvRow {
   activeBranch: string;
   shortCommitId: string;
   commitMessage: string;
+  repoType: 'frontend' | 'backend';
+  status: 'running' | 'stopped';
   envUrl: string;
   latestDeployAt: string;
   lastDeployer: string;
@@ -22,6 +25,9 @@ interface RepoEnvRow {
 // - 列表包含：仓库名、生效分支、短 Commit、环境 URL、最新部署时间、最后部署人、操作
 // - 点击“查看”进入项目详情；“日志详情”在详情页内
 export default function BranchesList() {
+  // AntD v5 推荐：使用 App.useApp 的 message，避免在弹层等场景丢失
+  const { message: msg } = AntApp.useApp()
+  const router = useRouter()
   // 模拟项目列表与收藏
   const allProjects: { id: string; name: string; team: string }[] = [
     { id: 'p-all', name: '全部项目', team: 'all' },
@@ -33,23 +39,32 @@ export default function BranchesList() {
   const [currentProjectId, setCurrentProjectId] = useState<string>('p-all')
   const [projectSearch, setProjectSearch] = useState<string>('')
 
+  // 工具：按规则格式化当前时间（YYYY-MM-DD HH:mm:ss）
+  const formatNow = (): string => {
+    const d = new Date()
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  }
+
   // 仓库有效分支数据（示例）
-  const baseData: RepoEnvRow[] = [
-    { repoId: '1', repoName: 'order-service', activeBranch: 'feature/login-fix', shortCommitId: 'a1b2c3d', commitMessage: '登录异常处理与埋点修复', envUrl: 'order-service-feature-login-fix.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: '张米' },
-    { repoId: '2', repoName: 'user-service', activeBranch: 'release-1.0', shortCommitId: 'f6g7h8i', commitMessage: '发布 1.0 稳定版', envUrl: 'user-service-release-1-0.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: '李米' },
-    { repoId: '3', repoName: 'payment-api', activeBranch: 'hotfix-22', shortCommitId: 'j9k0l1m', commitMessage: '支付回调健壮性 hotfix', envUrl: 'payment-api-hotfix-22.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: '王米' },
-    { repoId: '4', repoName: 'inventory-service', activeBranch: 'release-2.0', shortCommitId: 'x1y2z3', commitMessage: '库存同步性能优化', envUrl: 'inventory-service-release-2-0.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: '赵六' },
-    { repoId: '5', repoName: 'auth-service', activeBranch: 'feature/security', shortCommitId: 's3c9u1', commitMessage: '登录安全策略升级', envUrl: 'auth-service-feature-security.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: '王武' },
-    { repoId: '6', repoName: 'checkout-ui', activeBranch: 'release-2.1', shortCommitId: 'a7b7c7', commitMessage: '结算页 UX 打磨', envUrl: 'checkout-ui-release-2-1.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: '斑斑' },
-    { repoId: '7', repoName: 'profile-ui', activeBranch: 'feature/theme', shortCommitId: 'k3j9p1', commitMessage: '主题色与字体调整', envUrl: 'profile-ui-feature-theme.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: '李铁' },
+  const initialData: RepoEnvRow[] = [
+    { repoId: '1', repoName: 'order-service', activeBranch: 'feature/login', shortCommitId: 'a1b2c3d', commitMessage: '登录异常处理与埋点修复', repoType: 'frontend', status: 'running', envUrl: 'api-login-fix.stg.example.com', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: '张米' },
+    { repoId: '2', repoName: 'checkout-ui', activeBranch: 'release-2.1', shortCommitId: 'a7b7c7', commitMessage: '结算页 UX 打磨', repoType: 'frontend', status: 'running', envUrl: 'checkout-ui-release-2-1.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: '斑斑' },
+    { repoId: '3', repoName: 'profile-ui', activeBranch: 'feature/theme', shortCommitId: 'k3j9p1', commitMessage: '主题色与字体调整', repoType: 'frontend', status: 'stopped', envUrl: 'profile-ui-feature-theme.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: '李铁' },
+    { repoId: '4', repoName: 'user-service', activeBranch: 'release-1.0', shortCommitId: 'f6g7h8i', commitMessage: '发布 1.0 稳定版', repoType: 'frontend', status: 'running', envUrl: 'user-service-release-1-0.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: '李米' },
+    { repoId: '5', repoName: 'payment-api', activeBranch: 'hotfix-22', shortCommitId: 'j9k0l1m', commitMessage: '支付回调健壮性 hotfix', repoType: 'backend', status: 'stopped', envUrl: 'payment-api-hotfix-22.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: '王米' },
+    { repoId: '6', repoName: 'inventory-service', activeBranch: 'release-2.0', shortCommitId: 'x1y2z3', commitMessage: '库存同步性能优化', repoType: 'frontend', status: 'running', envUrl: 'inventory-service-release-2-0.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: '赵六' },
+    { repoId: '7', repoName: 'auth-service', activeBranch: 'feature/security', shortCommitId: 's3c9u1', commitMessage: '登录安全策略升级', repoType: 'backend', status: 'running', envUrl: 'auth-service-feature-security.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: '王武' },
+
   ]
+  const [rows, setRows] = useState<RepoEnvRow[]>(initialData)
   // 当前项目筛选的仓库（原型：仅做演示，使用 repoId 奇偶分配）
   const projectFiltered = useMemo(() => {
-    if (currentProjectId === 'p-all') return baseData
-    if (currentProjectId === 'p-a') return baseData.filter((r) => Number(r.repoId) % 2 === 1)
-    if (currentProjectId === 'p-b') return baseData.filter((r) => Number(r.repoId) % 2 === 0)
-    return baseData
-  }, [baseData, currentProjectId])
+    if (currentProjectId === 'p-all') return rows
+    if (currentProjectId === 'p-a') return rows.filter((r) => Number(r.repoId) % 2 === 1)
+    if (currentProjectId === 'p-b') return rows.filter((r) => Number(r.repoId) % 2 === 0)
+    return rows
+  }, [rows, currentProjectId])
 
   // 仓库搜索（基于名称包含）
   const [repoSearch, setRepoSearch] = useState<string>('')
@@ -78,6 +93,22 @@ export default function BranchesList() {
       )
     },
     {
+      title: '仓库类别',
+      dataIndex: 'repoType',
+      key: 'repoType',
+      render: (t: 'frontend' | 'backend') => (
+        <Tag color={t === 'frontend' ? 'geekblue' : 'gold'}>{t === 'frontend' ? '前端' : '后端'}</Tag>
+      )
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      render: (s: 'running' | 'stopped') => (
+        <Tag color={s === 'running' ? 'green' : 'default'}>{s === 'running' ? '运行中' : '停止'}</Tag>
+      )
+    },
+    {
       title: '分支 / Commit',
       key: 'branchCommit',
       render: (_: string, record: RepoEnvRow) => (
@@ -88,7 +119,7 @@ export default function BranchesList() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#444' }}>
             <DotChartOutlined style={{ color: '#8c8c8c' }} />
-            <a href="#" onClick={(e) => { e.preventDefault(); message.info(`打开 Commit ${record.shortCommitId}`) }} style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }}>
+            <a href="#" onClick={(e) => { e.preventDefault(); msg.info(`打开 Commit ${record.shortCommitId}`) }} style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }}>
               {record.shortCommitId}
             </a>
             <span style={{ color: '#8c8c8c' }}>{record.commitMessage}</span>
@@ -96,18 +127,51 @@ export default function BranchesList() {
         </div>
       )
     },
-    { title: '环境URL', dataIndex: 'envUrl', key: 'envUrl', render: (u: string) => <span style={{ fontFamily: 'monospace' }}>{u}</span> },
+    { title: '可访问地址', dataIndex: 'envUrl', key: 'envUrl', render: (u: string) => <span style={{ fontFamily: 'monospace' }}>{u}</span> },
     { title: '最新部署时间', dataIndex: 'latestDeployAt', key: 'latestDeployAt' },
     { title: '最后部署人', dataIndex: 'lastDeployer', key: 'lastDeployer' },
     {
-      title: '操作', key: 'actions', render: (_: unknown, record: RepoEnvRow) => (
+      title: '操作', key: 'actions', render: (_: unknown, record: RepoEnvRow) => {
+        const isStopped = record.status === 'stopped'
+        return (
         <Space>
           <Link href={`/projects/${record.repoId}`}>
           </Link>
-          <AntButton type="link" icon={<ReloadOutlined />} onClick={() => message.success('已触发重新部署')}>重新部署</AntButton>
-          <AntButton type="link" icon={<DeleteOutlined />} danger onClick={() => message.warning('已停用')}>停用</AntButton>
+            <Popconfirm
+              title="是否重新部署当前分支"
+              okText="确定"
+              cancelText="取消"
+              onConfirm={() => {
+                setRows((prev) => prev.map((r) => {
+                  if (r.repoId !== record.repoId) return r
+                  if (r.status === 'stopped') {
+                    return { ...r, status: 'running' }
+                  }
+                  return { ...r, latestDeployAt: formatNow() }
+                }))
+                msg.success(record.status === 'stopped' ? '状态已切换为运行中，并触发重新部署' : '已触发重新部署，时间已刷新')
+              }}
+            >
+              <AntButton type="link" icon={<ReloadOutlined />}>重新部署</AntButton>
+            </Popconfirm>
+            {isStopped ? (
+              <AntButton type="link" icon={<DeleteOutlined />} disabled>停用</AntButton>
+            ) : (
+              <Popconfirm
+                title="是否停用当前环境"
+                okText="确定"
+                cancelText="取消"
+                onConfirm={() => {
+                  setRows((prev) => prev.map((r) => r.repoId === record.repoId ? { ...r, status: 'stopped' } : r))
+                  msg.success('已停用当前环境')
+                }}
+              >
+                <AntButton type="link" icon={<DeleteOutlined />} danger>停用</AntButton>
+              </Popconfirm>
+            )}
         </Space>
       )
+      }
     }
   ]
 
@@ -170,31 +234,133 @@ export default function BranchesList() {
           />
         </Space>
         <div>
-          <AntButton icon={<ReloadOutlined />} onClick={() => message.success('已刷新')}>刷新</AntButton>
+          <AntButton icon={<ReloadOutlined />} onClick={() => msg.success('已刷新')}>刷新</AntButton>
         </div>
       </div>
 
       <h1 style={{ color: 'var(--heading)', margin: 0, marginBottom: 12 }}>环境一览</h1>
-      <AntTable<RepoEnvRow>
-        rowKey={(r) => `${r.repoId}-${r.activeBranch}`}
-        columns={columns}
-        dataSource={pageData}
-        pagination={{
-          current: currentPage,
-          pageSize,
-          total,
-          showSizeChanger: true,
-          pageSizeOptions: [5, 10, 20, 50],
-          showTotal: (t) => `共 ${t} 条`,
-          hideOnSinglePage: false
+      {/* 卡片栅格：替代表格展示，交互与字段保持不变 */}
+      <div
+        className="cards-grid"
+        style={{
+          display: 'grid',
+          gap: 16
         }}
-        onChange={(p: TablePaginationConfig) => {
-          const nextCurrent = p.current ?? 1
-          const nextSize = p.pageSize ?? pageSize
-          setCurrentPage(nextCurrent)
-          setPageSize(nextSize)
-        }}
-      />
+      >
+        <style>{`
+          @media (max-width: 1920px) {
+            .cards-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          }
+          @media (min-width: 1921px) {
+            .cards-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+          }
+        `}</style>
+        {pageData.map((record) => {
+          const isStopped = record.status === 'stopped'
+          return (
+            <div
+              key={`${record.repoId}-${record.activeBranch}`}
+              onClick={() => router.push(`/projects/${record.repoId}`)}
+              style={{
+                background: '#fff',
+                border: '1px solid #eee',
+                borderRadius: 12,
+                padding: 16,
+                cursor: 'pointer',
+                transition: 'box-shadow 0.2s ease',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 24px rgba(0,0,0,0.10)' }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)' }}
+            >
+              {/* 头部：仓库名 + 类别 + 状态 */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ fontWeight: 700, fontSize: 16 }}>{record.repoName}</div>
+                  <Tag color={record.repoType === 'frontend' ? 'geekblue' : 'gold'}>{record.repoType === 'frontend' ? '前端' : '后端'}</Tag>
+                </div>
+                <Tag color={record.status === 'running' ? 'green' : 'default'}>{record.status === 'running' ? '运行中' : '停止'}</Tag>
+              </div>
+              <div style={{ height: 1, background: '#f5f5f5', margin: '4px 0 12px' }} />
+
+              {/* 核心信息 */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', rowGap: 6, color: '#444' }}>
+                <div>分支：<span style={{ color: '#1e90ff', fontFamily: 'monospace' }}>{record.activeBranch}</span></div>
+                <div>环境URL：<span style={{ color: '#1e90ff', fontFamily: 'monospace' }}>{record.envUrl}</span></div>
+                <div>最新部署时间：{record.latestDeployAt}</div>
+                <div>部署人：{record.lastDeployer}</div>
+              </div>
+
+              <div style={{ height: 1, background: '#f5f5f5', margin: '12px 0' }} />
+
+              {/* 操作区：按钮需要阻止冒泡，避免触发卡片点击 */}
+              <Space>
+                <Popconfirm
+                  title="是否停用当前环境"
+                  okText="确定"
+                  cancelText="取消"
+                  onConfirm={(e) => {
+                    setRows((prev) => prev.map((r) => r.repoId === record.repoId ? { ...r, status: 'stopped' } : r))
+                    msg.success('已停用当前环境')
+                  }}
+                >
+                  <AntButton
+                    type="default"
+                    danger
+                    disabled={isStopped}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    停用
+                  </AntButton>
+                </Popconfirm>
+
+                <Popconfirm
+                  title="是否重新部署当前分支"
+                  okText="确定"
+                  cancelText="取消"
+                  onConfirm={(e) => {
+                    setRows((prev) => prev.map((r) => {
+                      if (r.repoId !== record.repoId) return r
+                      if (r.status === 'stopped') return { ...r, status: 'running' }
+                      return { ...r, latestDeployAt: formatNow() }
+                    }))
+                    msg.success(record.status === 'stopped' ? '状态已切换为运行中，并触发重新部署' : '已触发重新部署，时间已刷新')
+                  }}
+                >
+                  <AntButton
+                    type="primary"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    重新部署
+                  </AntButton>
+                </Popconfirm>
+
+                <AntButton
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); router.push(`/projects/${record.repoId}`) }}
+                >
+                  查看日志
+                </AntButton>
+              </Space>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* 分页 */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+        <AntPagination
+          current={currentPage}
+          pageSize={pageSize}
+          total={total}
+          showSizeChanger
+          pageSizeOptions={[5, 10, 20, 50]}
+          showTotal={(t) => `共 ${t} 条`}
+          onChange={(p, s) => { setCurrentPage(p); setPageSize(s) }}
+        />
+      </div>
     </main>
   )
 }

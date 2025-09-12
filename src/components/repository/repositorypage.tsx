@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import Link from 'next/link'
-import { Table as AntTable, Button as AntButton, Modal, Form, Input, Select as AntSelect, Progress as AntProgress, Space, message } from 'antd'
+import { Table as AntTable, Button as AntButton, Modal, Form, Input, Select as AntSelect, Progress as AntProgress, Space, App as AntApp } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { TablePaginationConfig } from 'antd/es/table/interface'
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
@@ -10,6 +10,7 @@ interface Repository { id: string; name: string; group?: string; type: string }
 
 function CreateRepoDialog({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const [form] = Form.useForm()
+  const { message: msg } = AntApp.useApp()
   const queryClient = useQueryClient()
   const createRepoMutation = useMutation({
     mutationFn: async (data: { name: string; type: string; category: string }) => ({ id: String(Date.now()), ...data }),
@@ -19,7 +20,7 @@ function CreateRepoDialog({ visible, onClose }: { visible: boolean; onClose: () 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (queryClient as any).setQueryData(['repositories'], (prev: Repository[] | undefined) => prev ? [...prev, newRepo] : [newRepo])
       onClose()
-      message.success('仓库已创建')
+      msg.success('仓库已创建')
     }
   })
   const handleOk = async () => { const values = await form.validateFields(); createRepoMutation.mutate(values) }
@@ -40,6 +41,7 @@ function CreateRepoDialog({ visible, onClose }: { visible: boolean; onClose: () 
 
 function InitializeDialog({ repoId, visible, onClose }: { repoId: string; visible: boolean; onClose: () => void }) {
   const [progress, setProgress] = useState({ step: 0, message: '准备初始化...', progress: 0 })
+  const { message: msg } = AntApp.useApp()
   const initializeMutation = useMutation({
     mutationFn: async () => {
       const steps = [{ message: '注入分支保护规则...', delay: 800 }, { message: '配置 GitHub Workflows...', delay: 1200 }, { message: '完成初始化', delay: 400 }]
@@ -50,7 +52,7 @@ function InitializeDialog({ repoId, visible, onClose }: { repoId: string; visibl
       }
       return { ok: true }
     },
-    onSuccess: () => { message.success('初始化完成'); onClose() }
+    onSuccess: () => { msg.success('初始化完成'); onClose() }
   })
   return (
     <Modal title="仓库初始化" open={visible} onCancel={onClose} footer={null}>
