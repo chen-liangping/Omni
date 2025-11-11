@@ -20,6 +20,7 @@ interface RepoMeta {
   envUrl: string;
   latestDeployAt: string;
   lastDeployer: string;
+  workflowFile: string;
 }
 
 // 这段代码实现了项目详情页，使用了 Ant Design 表格、按钮与标签
@@ -39,6 +40,8 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     envUrl: projectId === '1' ? 'order-service-feature-login-fix.stg.g123.jp' : projectId === '2' ? 'user-service-release-1-0.stg.g123.jp' : 'payment-api-hotfix-22.stg.g123.jp',
     latestDeployAt: projectId === '1' ? '2025-03-21 14:55:37' : projectId === '2' ? '2025-09-09 11:15:00' : '2025-09-05 19:42:00',
     lastDeployer: projectId === '1' ? '李铁' : projectId === '2' ? '牛牛' : '斑斑',
+    // 当前分支对应的 CI Workflow 文件名（仅前端原型展示用）
+    workflowFile: 'ci.yml'
   }
 
   const shortCommitId: string = projectId === '1' ? 'a1b2c3d' : projectId === '2' ? 'f6g7h8i' : 'j9k0l1m'
@@ -141,6 +144,14 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
                       <div>
                         <div style={{ color: '#2f3542', fontWeight: 800, marginBottom: 8 }}>Commit ID</div>
                         <a href="#" onClick={(e) => { e.preventDefault(); msg.info(`打开 Commit ${shortCommitId}`) }}>{shortCommitId}</a>
+                      </div>
+                      <div>
+                        <div style={{ color: '#2f3542', fontWeight: 800, marginBottom: 8 }}>当前分支 Workflow</div>
+                        <a
+                          href={`https://github.com/company/${repoMeta.name}/actions/workflows/${repoMeta.workflowFile}?query=branch:${repoMeta.activeBranch}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >{`${repoMeta.workflowFile}（GitHub Actions）`}</a>
                       </div>
                       <div>
                         <div style={{ color: '#2f3542', fontWeight: 800, marginBottom: 8 }}>最新部署时间</div>
@@ -307,8 +318,35 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
                 <div>状态：{activeLog.status}</div>
               </div>
             </div>
+            {/* CI 构建区：与部署日志放在一起，便于联动查看 */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+                {activeLog.status === '成功' ? (
+                  <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                ) : (
+                  <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
+                )}
+                <span>{activeLog.status === '成功' ? '构建成功' : '构建失败'}</span>
+                <span style={{ fontSize: 12, color: '#666' }}>{`Commit ${activeLog.commitId}`}</span>
+                <a
+                  href={`https://github.com/company/${repoMeta.name}/actions/workflows/${repoMeta.workflowFile}?query=branch:${activeLog.branch}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ marginLeft: 8 }}
+                >{repoMeta.workflowFile}</a>
+              </div>
+            </div>
             <div style={{ fontFamily: 'monospace', background: '#0d1117', color: '#c9d1d9', padding: 16, borderRadius: 8, whiteSpace: 'pre-wrap' }}>
-{`[14:32:01] 开始部署任务\n...[14:32:02] 拉取代码：git clone https://git.company.com/${repoMeta.name}.git\n...[14:32:05] 检出分支：${activeLog.branch} (commit ${activeLog.commitId})\n...[14:32:10] 构建镜像：docker build -t ${repoMeta.name}:${activeLog.commitId} .\n...[14:32:30] 推送镜像：registry.company.com/${repoMeta.name}:${activeLog.commitId}\n...[14:32:45] 应用部署配置：k8s/${repoMeta.name}-deploy.yaml\n...[14:33:00] 等待 Pod 就绪...\n...[14:33:10] Pod (${repoMeta.name}-abc123) 启动成功\n...[14:33:15] 健康检查通过\n...[14:33:16] 部署完成 ✅`}
+{`[17:01:15.735] Running build in Washington, D.C., USA (East) – iad1
+[17:01:15.735] Build machine configuration: 2 cores, 8 GB
+[17:01:15.780] Cloning github.com/chen-liangping/Publisher_demo (Branch: vercel, Commit: 1b8052b)
+[17:01:16.242] Cloning completed: 461.000ms
+[17:01:19.199] Restored build cache from previous deployment (DYwMp2ACh3EosSAW4zyPWnbtq1Q1)
+[17:01:19.903] Running "vercel build"
+[17:01:20.301] Vercel CLI 47.1.1
+[17:01:20.778] Installing dependencies...
+[17:01:22.247] 
+[17:01:22.248] up to date in 1s`}
             </div>
             <div style={{ marginTop: 12, display: 'flex', gap: 12 }}>
               <AntButton onClick={() => msg.success('已下载日志文件')}>⬇ 下载日志文件</AntButton>

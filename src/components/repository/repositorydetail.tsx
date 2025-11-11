@@ -1,7 +1,7 @@
 "use client"
 import React, { useState } from 'react'
-import { Checkbox, Collapse, Tabs, Alert, Table as AntTable, Button as AntButton, Space, Modal, Form, Input, Popconfirm, App as AntApp } from 'antd'
-import { DownOutlined, RightOutlined, CheckCircleOutlined, ExclamationCircleOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Checkbox, Collapse, Tabs, Table as AntTable, Button as AntButton, Space, Modal, Form, Input, Popconfirm, App as AntApp } from 'antd'
+import { DownOutlined, RightOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useQuery } from '@tanstack/react-query'
 
@@ -39,7 +39,7 @@ interface Branch {
 export default function RepositoryDetailPage({ repoId: propRepoId }: { repoId?: string }) {
   const { message: msg } = AntApp.useApp()
   const repoId = propRepoId ?? '';
-  const [activeTab, setActiveTab] = useState("branches");
+  const [activeTab, setActiveTab] = useState("logs");
   // 显式初始化对象并通过常量声明标注类型，避免在 useState 上传入泛型
   const initialOpenStates: Record<string, boolean> = {
     master: true,
@@ -62,7 +62,7 @@ export default function RepositoryDetailPage({ repoId: propRepoId }: { repoId?: 
   const { data: initStatus } = useQuery<InitStatus>({
     queryKey: ["repository-init-status", repoId],
     queryFn: async () => {
-      // 原型不依赖后端，返回模拟数据
+      // 原型不依赖后端，这里仅保留查询以便未来扩展；日志展示不依赖该数据
       return {
         status: 'success',
         steps: [
@@ -205,14 +205,6 @@ export default function RepositoryDetailPage({ repoId: propRepoId }: { repoId?: 
         { id: "staging-7", title: "禁止强推", description: "禁止强制推送和直接推送（push and force-push）", checked: true, disabled: true },
         { id: "staging-8", title: "管理员权限", description: "管理员无法绕过", checked: true, disabled: true }
       ]
-    },
-    {
-      name: "deploy/staging",
-      rules: [
-        { id: "develop-1", title: "限制删除", description: "分支限制删除", checked: true, disabled: true },
-        { id: "develop-2", title: "CI检查", description: "需要CI检查通过", checked: true, disabled: true },
-        { id: "develop-3", title: "最新代码", description: "每次合并前需要确保最新代码", checked: true, disabled: true },
-      ]
     }
   ];
 
@@ -334,50 +326,51 @@ export default function RepositoryDetailPage({ repoId: propRepoId }: { repoId?: 
           </div>
         )
 
-        const initStatusContent = (
+        // 日志内容：参考截图样式（等宽体、淡灰底、窄行高），便于快速浏览构建与告警
+        const logLines: string[] = [
+          `[17:01:15.735] Running build in Washington, D.C., USA (East) – iad1`,
+          `[17:01:15.735] Build machine configuration: 2 cores, 8 GB`,
+          `[17:01:15.780] Cloning github.com/chen-liangping/Publisher_demo (Branch: vercel, Commit: 1b8052b)`,
+          `[17:01:16.242] Cloning completed: 461.000ms`,
+          `[17:01:19.199] Restored build cache from previous deployment (DYwMp2ACh3EosSAW4zyPWnbtq1Q1)`,
+          `[17:01:19.903] Running "vercel build"`,
+          `[17:01:20.301] Vercel CLI 47.1.1`,
+          `[17:01:20.778] Installing dependencies...`,
+          `[17:01:22.247] `,
+          `[17:01:22.248] up to date in 1s`,
+          `[17:02:11.013] 20:3  Warning: 'Tag' is defined but never used.  @typescript-eslint/no-unused-vars`,
+          `[17:02:11.014] 22:3  Warning: 'Collapse' is defined but never used.  @typescript-eslint/no-unused-vars`,
+          `[17:02:11.014] 23:3  Warning: 'Cascader' is defined but never used.  @typescript-eslint/no-unused-vars`,
+          `[17:02:11.014] 25:3  Warning: 'List' is defined but never used.  @typescript-eslint/no-unused-vars`,
+          `[17:02:11.014] 26:3  Warning: 'Radio' is defined but never used.  @typescript-eslint/no-unused-vars`,
+          `[17:02:11.014] 31:15 Warning: 'TableRowSelection' is defined but never used.  @typescript-eslint/no-unused-vars`,
+          `[17:02:11.014] 42:3  Warning: 'ReloadOutlined' is defined but never used.  @typescript-eslint/no-unused-vars`,
+          `[17:02:11.014] 43:3  Warning: 'UndoOutlined' is defined but never used.  @typescript-eslint/no-unused-vars`,
+          `[17:02:11.015] 69:7  Warning: 'isEmptyMatrixRow' is assigned a value but never used.  @typescript-eslint/no-unused-vars`,
+          `[17:02:11.015] info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules`
+        ]
+        const logsContent = (
           <div className="bg-white rounded-lg p-6" style={{ width: '100%' }}>
-            {initStatus?.status === 'failed' && (
-              <Alert
-                type="error"
-                showIcon
-                icon={<ExclamationCircleOutlined />}
-                className="mb-6"
-                message={<div style={{ fontWeight: 600 }}>初始化失败</div>}
-                description={<div>{initStatus.error || '初始化过程中发生错误'}</div>}
-              />
-            )}
-
-            {initStatus?.status === 'success' && (
-              <Alert
-                type="success"
-                showIcon
-                icon={<CheckCircleOutlined />}
-                className="mb-6"
-                message={<div style={{ fontWeight: 600 }}>初始化成功</div>}
-                description={<div>仓库已完成所有初始化配置</div>}
-              />
-            )}
-
-            <div style={{ display: 'grid', gap: 12 }}>
-              {initStatus?.steps.map((step, index) => (
-                <div key={index} style={{ display: 'flex', gap: 12, padding: 12, borderRadius: 8, border: '1px solid #eee', alignItems: 'center' }}>
-                  {step.status === 'success' && <CheckCircleOutlined style={{ color: '#52C41A' }} />}
-                  {step.status === 'failed' && <ExclamationCircleOutlined style={{ color: '#FF4D4F' }} />}
-                  {step.status === 'pending' && <div style={{ width: 12, height: 12, borderRadius: 6, border: '2px solid #1677FF', borderTopColor: 'transparent', animation: 'spin 1s linear infinite' }} />}
-                  <div>
-                    <div style={{ fontWeight: 600 }}>{step.name}</div>
-                    {step.error && <div style={{ color: '#FF4D4F' }}>{step.error}</div>}
-                  </div>
-                </div>
-              ))}
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>部署日志</div>
+            <div
+              style={{
+                fontFamily: 'monospace',
+                background: '#f1f2f6',
+                color: '#2c3e50',
+                padding: 16,
+                borderRadius: 8,
+                whiteSpace: 'pre-wrap',
+                lineHeight: 1.6
+              }}
+            >
+              {logsContentHelper(logLines)}
             </div>
           </div>
         )
 
         const items = [
-          { key: 'branches', label: '分支', children: branchesContent },
           { key: 'branch-rules', label: '分支保护规则', children: branchRulesContent },
-          { key: 'init-status', label: '初始化', children: initStatusContent },
+          { key: 'logs', label: '日志', children: logsContent },
         ]
 
         return (
@@ -391,3 +384,8 @@ export default function RepositoryDetailPage({ repoId: propRepoId }: { repoId?: 
     </div>
   )
 } 
+
+// 这段代码实现了将日志数组渲染为字符串，使用了简单的 join 以避免多余 DOM
+function logsContentHelper(lines: string[]): string {
+  return lines.join('\\n')
+}

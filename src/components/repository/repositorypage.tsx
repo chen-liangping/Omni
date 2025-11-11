@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Table as AntTable, Button as AntButton, Modal, Form, Input, Select as AntSelect, Progress as AntProgress, Space, App as AntApp } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
@@ -6,14 +6,22 @@ import type { TablePaginationConfig } from 'antd/es/table/interface'
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
-interface Repository { id: string; name: string; group?: string; type: string }
+type RepoStatus = '初始化完成' | '未初始化' | '初始化中'
+interface Repository { id: string; name: string; type: string; status: RepoStatus; project: string }
 
 function CreateRepoDialog({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const [form] = Form.useForm()
   const { message: msg } = AntApp.useApp()
   const queryClient = useQueryClient()
   const createRepoMutation = useMutation({
-    mutationFn: async (data: { name: string; type: string; category: string }) => ({ id: String(Date.now()), ...data }),
+    // 将“分类”映射为列表展示所需的 type 字段；新仓库默认状态为“未初始化”
+    mutationFn: async (data: { name: string; type: string; category: string }) => ({
+      id: String(Date.now()),
+      name: data.name,
+      type: data.category,
+      status: '未初始化' as RepoStatus,
+      project: '未分配'
+    }),
     onSuccess: (newRepo: Repository) => {
       // 将新仓库写入本地缓存，触发列表刷新
       // 这里不使用泛型，直接标注参数类型以兼容本项目的最小类型声明
@@ -75,46 +83,53 @@ export default function RepositoriesPage() {
   const { data: repositories = [] } = useQuery<Repository[]>({
     queryKey: ['repositories'],
     queryFn: async () => [
-      { id: '1', name: 'omni-frontend', group: 'team-a', type: 'frontend-micro' },
-      { id: '2', name: 'omni-backend', group: 'team-b', type: 'backend-micro' },
-      { id: '3', name: 'order-service', group: 'team-a', type: 'backend-micro' },
-      { id: '4', name: 'user-service', group: 'team-b', type: 'backend-micro' },
-      { id: '5', name: 'payment-api', group: 'team-a', type: 'backend-micro' },
-      { id: '6', name: 'inventory-service', group: 'team-b', type: 'backend-micro' },
-      { id: '7', name: 'notification-service', group: 'team-a', type: 'backend-micro' },
-      { id: '8', name: 'auth-service', group: 'team-b', type: 'backend-micro' },
-      { id: '9', name: 'reporting-ui', group: 'team-a', type: 'frontend-only' },
-      { id: '10', name: 'marketing-site', group: 'team-b', type: 'frontend-only' },
-      { id: '11', name: 'profile-ui', group: 'team-a', type: 'frontend-micro' },
-      { id: '12', name: 'checkout-ui', group: 'team-b', type: 'frontend-micro' },
-      { id: '13', name: 'recommendation-service', group: 'team-a', type: 'backend-micro' },
-      { id: '14', name: 'billing-service', group: 'team-b', type: 'backend-micro' },
-      { id: '15', name: 'search-service', group: 'team-a', type: 'backend-micro' },
-      { id: '16', name: 'feed-service', group: 'team-b', type: 'backend-micro' },
-      { id: '17', name: 'cms-ui', group: 'team-a', type: 'frontend-only' }
+      { id: '1', name: 'omni-frontend', type: 'frontend-micro', status: '初始化完成', project: '项目A' },
+      { id: '2', name: 'omni-backend', type: 'backend-micro', status: '初始化中', project: '项目B' },
+      { id: '3', name: 'order-service', type: 'backend-micro', status: '未初始化', project: '项目A' },
+      { id: '4', name: 'user-service', type: 'backend-micro', status: '初始化完成', project: '项目B' },
+      { id: '5', name: 'payment-api', type: 'backend-micro', status: '初始化完成', project: '项目C' },
+      { id: '6', name: 'inventory-service', type: 'backend-micro', status: '未初始化', project: '项目A' },
+      { id: '7', name: 'notification-service', type: 'backend-micro', status: '未初始化', project: '项目B' },
+      { id: '8', name: 'auth-service', type: 'backend-micro', status: '初始化中', project: '项目C' },
+      { id: '9', name: 'reporting-ui', type: 'frontend-only', status: '初始化完成', project: '项目A' },
+      { id: '10', name: 'marketing-site', type: 'frontend-only', status: '未初始化', project: '项目C' },
+      { id: '11', name: 'profile-ui', type: 'frontend-micro', status: '初始化完成', project: '项目A' },
+      { id: '12', name: 'checkout-ui', type: 'frontend-micro', status: '初始化中', project: '项目B' },
+      { id: '13', name: 'recommendation-service', type: 'backend-micro', status: '初始化完成', project: '项目C' },
+      { id: '14', name: 'billing-service', type: 'backend-micro', status: '未初始化', project: '项目B' },
+      { id: '15', name: 'search-service', type: 'backend-micro', status: '初始化完成', project: '项目A' },
+      { id: '16', name: 'feed-service', type: 'backend-micro', status: '初始化完成', project: '项目C' },
+      { id: '17', name: 'cms-ui', type: 'frontend-only', status: '未初始化', project: '项目B' }
     ]
   })
 
-  // 顶部工具条状态：项目筛选 + 搜索关键字
+  // 顶部工具条状态：项目筛选 + 状态筛选 + 搜索关键字
   const [selectedProject, setSelectedProject] = useState<string>('all')
+  const [selectedStatus, setSelectedStatus] = useState<'all' | RepoStatus>('all')
   const [searchKeyword, setSearchKeyword] = useState<string>('')
 
   // 分页状态（受控）
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(10)
 
-  // 模拟的项目选项；使用 Repository.group 作为项目的近似字段
-  const projectOptions: { label: string; value: string }[] = [
-    { label: '全部项目', value: 'all' },
-    { label: 'Team A', value: 'team-a' },
-    { label: 'Team B', value: 'team-b' }
+  // 项目与状态筛选项
+  const projectOptions: { label: string; value: string }[] = useMemo(() => {
+    const set = new Set<string>(repositories.map(r => r.project))
+    return [{ label: '全部项目', value: 'all' }, ...Array.from(set).map(p => ({ label: p, value: p })) ]
+  }, [repositories])
+  const statusOptions: { label: string; value: 'all' | RepoStatus }[] = [
+    { label: '全部状态', value: 'all' },
+    { label: '初始化完成', value: '初始化完成' },
+    { label: '未初始化', value: '未初始化' },
+    { label: '初始化中', value: '初始化中' }
   ]
 
   // 基于项目与搜索的本地筛选
   const filteredRepositories: Repository[] = repositories.filter((repo: Repository) => {
-    const inProject = selectedProject === 'all' || repo.group === selectedProject
+    const inProject = selectedProject === 'all' || repo.project === selectedProject
+    const inStatus = selectedStatus === 'all' || repo.status === selectedStatus
     const inSearch = searchKeyword.trim() === '' || repo.name.toLowerCase().includes(searchKeyword.trim().toLowerCase())
-    return inProject && inSearch
+    return inProject && inStatus && inSearch
   })
 
   const totalItems: number = filteredRepositories.length
@@ -129,10 +144,15 @@ export default function RepositoriesPage() {
       render: (text: string, record: Repository) => <Link href={`/repositories/${record.id}`}>{text}</Link>
     },
     {
-      title: '仓库组别',
-      dataIndex: 'group',
-      key: 'group',
-      render: (g: string | undefined) => g ?? '-'
+      title: '项目',
+      dataIndex: 'project',
+      key: 'project'
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      render: (s: RepoStatus) => s
     },
     {
       title: '仓库类型',
@@ -164,6 +184,13 @@ export default function RepositoriesPage() {
             value={selectedProject}
             // 切换项目时重置到第 1 页
             onChange={(value: string) => { setSelectedProject(value); setCurrentPage(1) }}
+          />
+          <AntSelect
+            style={{ width: 160 }}
+            options={statusOptions}
+            value={selectedStatus}
+            // 切换状态时重置到第 1 页
+            onChange={(value: 'all' | RepoStatus) => { setSelectedStatus(value); setCurrentPage(1) }}
           />
           <Input
             style={{ width: 320 }}
