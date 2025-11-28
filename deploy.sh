@@ -185,19 +185,19 @@ show_help() {
     echo "用法: $0 [选项]"
     echo ""
     echo "选项:"
-    echo "  -p, --port PORT    指定端口号 (默认: 8080)"
+    echo "  -p, --port PORT    指定端口号 (默认: 8081)"
     echo "  -c, --clean        强制清理缓存和重新安装依赖"
     echo "  -h, --help         显示帮助信息"
     echo ""
     echo "示例:"
     echo "  $0                 # 使用默认端口 3000"
-    echo "  $0 -p 8080         # 使用端口 8080"
+    echo "  $0 -p 8081         # 使用端口 8081"
     echo "  $0 --clean         # 强制清理并重新安装"
 }
 
 # 主函数
 main() {
-    local port=8080
+    local port=8081
     local force_clean=false
     
     # 解析命令行参数

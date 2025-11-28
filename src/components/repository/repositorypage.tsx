@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { PROJECTS } from '@/constants/mock'
 import Link from 'next/link'
 import { Table as AntTable, Button as AntButton, Modal, Form, Input, Select as AntSelect, Progress as AntProgress, Space, App as AntApp } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
@@ -7,7 +8,28 @@ import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
 type RepoStatus = '初始化完成' | '未初始化' | '初始化中'
-interface Repository { id: string; name: string; type: string; status: RepoStatus; project: string }
+interface Repository { id: string; name: string; type: string; status: RepoStatus; project: string; lastUpdated: string }
+
+// 将当前时间格式化为 YYYY-MM-DD HH:mm:ss
+function formatNow(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const yyyy = d.getFullYear()
+  const MM = pad(d.getMonth() + 1)
+  const dd = pad(d.getDate())
+  const HH = pad(d.getHours())
+  const mm = pad(d.getMinutes())
+  const ss = pad(d.getSeconds())
+  return `${yyyy}-${MM}-${dd} ${HH}:${mm}:${ss}`
+}
+
+// 判断给定时间字符串是否早于 N 天前
+function isOlderThanDays(dateTimeStr: string, days: number): boolean {
+  const ts = new Date(dateTimeStr.replace(' ', 'T')).getTime()
+  if (Number.isNaN(ts)) return false
+  const diff = Date.now() - ts
+  return diff > days * 24 * 60 * 60 * 1000
+}
 
 function CreateRepoDialog({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const [form] = Form.useForm()
@@ -20,7 +42,8 @@ function CreateRepoDialog({ visible, onClose }: { visible: boolean; onClose: () 
       name: data.name,
       type: data.category,
       status: '未初始化' as RepoStatus,
-      project: '未分配'
+      project: '未分配',
+      lastUpdated: formatNow()
     }),
     onSuccess: (newRepo: Repository) => {
       // 将新仓库写入本地缓存，触发列表刷新
@@ -83,23 +106,23 @@ export default function RepositoriesPage() {
   const { data: repositories = [] } = useQuery<Repository[]>({
     queryKey: ['repositories'],
     queryFn: async () => [
-      { id: '1', name: 'omni-frontend', type: 'frontend-micro', status: '初始化完成', project: '项目A' },
-      { id: '2', name: 'omni-backend', type: 'backend-micro', status: '初始化中', project: '项目B' },
-      { id: '3', name: 'order-service', type: 'backend-micro', status: '未初始化', project: '项目A' },
-      { id: '4', name: 'user-service', type: 'backend-micro', status: '初始化完成', project: '项目B' },
-      { id: '5', name: 'payment-api', type: 'backend-micro', status: '初始化完成', project: '项目C' },
-      { id: '6', name: 'inventory-service', type: 'backend-micro', status: '未初始化', project: '项目A' },
-      { id: '7', name: 'notification-service', type: 'backend-micro', status: '未初始化', project: '项目B' },
-      { id: '8', name: 'auth-service', type: 'backend-micro', status: '初始化中', project: '项目C' },
-      { id: '9', name: 'reporting-ui', type: 'frontend-only', status: '初始化完成', project: '项目A' },
-      { id: '10', name: 'marketing-site', type: 'frontend-only', status: '未初始化', project: '项目C' },
-      { id: '11', name: 'profile-ui', type: 'frontend-micro', status: '初始化完成', project: '项目A' },
-      { id: '12', name: 'checkout-ui', type: 'frontend-micro', status: '初始化中', project: '项目B' },
-      { id: '13', name: 'recommendation-service', type: 'backend-micro', status: '初始化完成', project: '项目C' },
-      { id: '14', name: 'billing-service', type: 'backend-micro', status: '未初始化', project: '项目B' },
-      { id: '15', name: 'search-service', type: 'backend-micro', status: '初始化完成', project: '项目A' },
-      { id: '16', name: 'feed-service', type: 'backend-micro', status: '初始化完成', project: '项目C' },
-      { id: '17', name: 'cms-ui', type: 'frontend-only', status: '未初始化', project: '项目B' }
+      { id: '1', name: 'omni-frontend', type: 'frontend-micro', status: '初始化完成', project: PROJECTS[0], lastUpdated: '2025-10-15 12:20:30' },
+      { id: '2', name: 'omni-backend', type: 'backend-micro', status: '初始化中', project: PROJECTS[1], lastUpdated: '2025-11-05 09:10:05' },
+      { id: '3', name: 'order-service', type: 'backend-micro', status: '未初始化', project: PROJECTS[0], lastUpdated: '2025-09-01 08:00:00' }, // 超过1个月
+      { id: '4', name: 'user-service', type: 'backend-micro', status: '初始化完成', project: PROJECTS[1], lastUpdated: '2025-11-10 18:42:11' },
+      { id: '5', name: 'payment-api', type: 'backend-micro', status: '初始化完成', project: PROJECTS[2], lastUpdated: '2025-08-30 10:10:10' }, // 超过1个月
+      { id: '6', name: 'inventory-service', type: 'backend-micro', status: '未初始化', project: PROJECTS[0], lastUpdated: '2025-10-31 21:02:44' },
+      { id: '7', name: 'notification-service', type: 'backend-micro', status: '未初始化', project: PROJECTS[1], lastUpdated: '2025-11-08 07:59:59' },
+      { id: '8', name: 'auth-service', type: 'backend-micro', status: '初始化中', project: PROJECTS[2], lastUpdated: '2025-07-12 13:13:13' }, // 超过1个月
+      { id: '9', name: 'reporting-ui', type: 'frontend-only', status: '初始化完成', project: PROJECTS[0], lastUpdated: '2025-11-11 11:11:11' },
+      { id: '10', name: 'marketing-site', type: 'frontend-only', status: '未初始化', project: PROJECTS[2], lastUpdated: '2025-10-02 06:06:06' },
+      { id: '11', name: 'profile-ui', type: 'frontend-micro', status: '初始化完成', project: PROJECTS[0], lastUpdated: '2025-11-01 00:00:01' },
+      { id: '12', name: 'checkout-ui', type: 'frontend-micro', status: '初始化中', project: PROJECTS[1], lastUpdated: '2025-11-09 15:20:00' },
+      { id: '13', name: 'recommendation-service', type: 'backend-micro', status: '初始化完成', project: PROJECTS[2], lastUpdated: '2025-09-09 09:09:09' }, // 超过1个月
+      { id: '14', name: 'billing-service', type: 'backend-micro', status: '未初始化', project: PROJECTS[1], lastUpdated: '2025-11-03 03:03:03' },
+      { id: '15', name: 'search-service', type: 'backend-micro', status: '初始化完成', project: PROJECTS[0], lastUpdated: '2025-11-12 10:00:00' },
+      { id: '16', name: 'feed-service', type: 'backend-micro', status: '初始化完成', project: PROJECTS[2], lastUpdated: '2025-10-12 12:00:00' },
+      { id: '17', name: 'cms-ui', type: 'frontend-only', status: '未初始化', project: PROJECTS[1], lastUpdated: '2025-09-30 23:59:59' } // 超过1个月
     ]
   })
 
@@ -147,6 +170,15 @@ export default function RepositoriesPage() {
       title: '项目',
       dataIndex: 'project',
       key: 'project'
+    },
+    {
+      title: '最近更新时间',
+      dataIndex: 'lastUpdated',
+      key: 'lastUpdated',
+      render: (t: string) => {
+        const isOld = isOlderThanDays(t, 30)
+        return <span style={{ color: isOld ? '#ff4d4f' : undefined }}>{t}</span>
+      }
     },
     {
       title: '状态',

@@ -2,7 +2,6 @@ import './globals.css'
 import { ReactNode } from 'react'
 import { Inter } from 'next/font/google'
 import { Providers } from '@/omni'
-import Comments from '@/components/comments'
 import { UserAvatarMenu } from '@/omni'
 import { Menu } from 'antd'
 import Link from 'next/link'
@@ -50,7 +49,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <nav style={{ width: '100%', background: 'transparent', height: '100%' }}>
             <Menu
               mode="inline"
-              defaultOpenKeys={["repository"]}
+              defaultOpenKeys={["repository","vulnerabilities"]}
               style={{ height: '100%', borderRight: 0 }}
               items={[
                 {
@@ -58,6 +57,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                   label: '仓库',
                   children: [
                     { key: 'repository-list', label: <Link href="/repositories">仓库列表</Link> },
+                    { key: 'permissions', label: <Link href="/permissions">权限变更记录</Link> },
                     { key: 'repository-apis', label: <Link href="/repositories/apis">接口调用情况</Link> }
                   ]
                 },
@@ -68,7 +68,16 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                     { key: 'projects-list', label: <Link href="/projects">环境一览</Link> },
                     { key: 'webhooks', label: <Link href="/webhooks">Webhook 机器人</Link> },
                   ]
-                }
+                },
+                {
+                  key: 'vulnerabilities',
+                  label: '漏洞管理',
+                  children: [
+                    { key: 'vuln-dashboard', label: <Link href="/vulnerabilities/dashboard">Dashboard</Link> },
+                    { key: 'vuln-list', label: <Link href="/vulnerabilities">漏洞列表</Link> }
+                  ]
+                },
+                
                /* 预留扩展位 */
                 
               ]}
@@ -93,8 +102,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 {/* 主内容卡片容器：白底、圆角、阴影；与侧栏之间的 gap 让背景透出 */}
                 <div style={{ background: '#fff', borderRadius: 12, boxShadow: '0 8px 28px rgba(0,0,0,0.08)', padding: '16px 16px 16px 6px', minHeight: 80, overflow: 'hidden' }}>
                   {children}
-                  {/* 全局挂载 Giscus：文章/页面底部都显示讨论区 */}
-                  <Comments />
                 </div>
               </main>
             </div>

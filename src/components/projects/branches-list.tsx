@@ -31,9 +31,9 @@ export default function BranchesList() {
   // 模拟项目列表与收藏
   const allProjects: { id: string; name: string; team: string }[] = [
     { id: 'p-all', name: '全部项目', team: 'all' },
-    { id: 'p-a', name: 'Team A 项目', team: 'team-a' },
-    { id: 'p-b', name: 'Team B 项目', team: 'team-b' },
-    { id: 'p-ml', name: 'ML 平台', team: 'ml' },
+    { id: 'p-a', name: 'Publisher', team: 'team-a' },
+    { id: 'p-b', name: 'Omni', team: 'team-b' },
+    { id: 'p-ml', name: 'Core', team: 'ml' },
   ]
   const [favoriteProjectIds, setFavoriteProjectIds] = useState<string[]>(['p-a'])
   const [currentProjectId, setCurrentProjectId] = useState<string>('p-all')
@@ -48,13 +48,13 @@ export default function BranchesList() {
 
   // 仓库有效分支数据（示例）
   const initialData: RepoEnvRow[] = [
-    { repoId: '1', repoName: 'order-service', activeBranch: 'feature/login', shortCommitId: 'a1b2c3d', commitMessage: '登录异常处理与埋点修复', repoType: 'frontend', status: 'running', envUrl: 'api-login-fix.stg.example.com', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: '张米' },
-    { repoId: '2', repoName: 'checkout-ui', activeBranch: 'release-2.1', shortCommitId: 'a7b7c7', commitMessage: '结算页 UX 打磨', repoType: 'frontend', status: 'running', envUrl: 'checkout-ui-release-2-1.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: '斑斑' },
-    { repoId: '3', repoName: 'profile-ui', activeBranch: 'feature/theme', shortCommitId: 'k3j9p1', commitMessage: '主题色与字体调整', repoType: 'frontend', status: 'stopped', envUrl: 'profile-ui-feature-theme.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: '李铁' },
-    { repoId: '4', repoName: 'user-service', activeBranch: 'release-1.0', shortCommitId: 'f6g7h8i', commitMessage: '发布 1.0 稳定版', repoType: 'frontend', status: 'running', envUrl: 'user-service-release.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: '李米' },
-    { repoId: '5', repoName: 'payment-api', activeBranch: 'hotfix-22', shortCommitId: 'j9k0l1m', commitMessage: '支付回调健壮性 hotfix', repoType: 'backend', status: 'stopped', envUrl: 'payment-api-hotfix-22.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: '王米' },
-    { repoId: '6', repoName: 'inventory-service', activeBranch: 'release-2.0', shortCommitId: 'x1y2z3', commitMessage: '库存同步性能优化', repoType: 'frontend', status: 'running', envUrl: 'inventory-service-release-2-0.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: '赵六' },
-    { repoId: '7', repoName: 'auth-service', activeBranch: 'feature/security', shortCommitId: 's3c9u1', commitMessage: '登录安全策略升级', repoType: 'backend', status: 'running', envUrl: 'auth-service-feature-security.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: '王武' },
+    { repoId: '1', repoName: 'order-service', activeBranch: 'feature/login', shortCommitId: 'a1b2c3d', commitMessage: '登录异常处理与埋点修复', repoType: 'frontend', status: 'running', envUrl: 'api-login-fix.stg.example.com', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: 'lin.y@ctw.inc' },
+    { repoId: '2', repoName: 'checkout-ui', activeBranch: 'release-2.1', shortCommitId: 'a7b7c7', commitMessage: '结算页 UX 打磨', repoType: 'frontend', status: 'running', envUrl: 'checkout-ui-release-2-1.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: 'wu.yuni@ctw.inc' },
+    { repoId: '3', repoName: 'profile-ui', activeBranch: 'feature/theme', shortCommitId: 'k3j9p1', commitMessage: '主题色与字体调整', repoType: 'frontend', status: 'stopped', envUrl: 'profile-ui-feature-theme.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: 'lin.y@ctw.inc' },
+    { repoId: '4', repoName: 'user-service', activeBranch: 'release-1.0', shortCommitId: 'f6g7h8i', commitMessage: '发布 1.0 稳定版', repoType: 'frontend', status: 'running', envUrl: 'user-service-release.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: 'yu.t@ctw.inc' },
+    { repoId: '5', repoName: 'payment-api', activeBranch: 'hotfix-22', shortCommitId: 'j9k0l1m', commitMessage: '支付回调健壮性 hotfix', repoType: 'backend', status: 'stopped', envUrl: 'payment-api-hotfix-22.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: 'lin.y@ctw.inc' },
+    { repoId: '6', repoName: 'inventory-service', activeBranch: 'release-2.0', shortCommitId: 'x1y2z3', commitMessage: '库存同步性能优化', repoType: 'frontend', status: 'running', envUrl: 'inventory-service-release-2-0.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: 'yu.t@ctw.inc' },
+    { repoId: '7', repoName: 'auth-service', activeBranch: 'feature/security', shortCommitId: 's3c9u1', commitMessage: '登录安全策略升级', repoType: 'backend', status: 'running', envUrl: 'auth-service-feature-security.stg.g123.jp', latestDeployAt: '2025-03-21 14:55:37', lastDeployer: 'wu.yuni@ctw.inc' },
 
   ]
   const [rows, setRows] = useState<RepoEnvRow[]>(initialData)

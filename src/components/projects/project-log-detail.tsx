@@ -1,6 +1,7 @@
 "use client"
 import React, { cache } from 'react'
 import Link from 'next/link'
+import { USERS } from '@/constants/mock'
 
 // 这段代码实现了部署日志详情页（占位），使用了 React 客户端组件
 // 代码说明：展示基本信息与模拟日志，并提供返回、下载、重试操作
@@ -9,7 +10,7 @@ export default function ProjectLogDetail({ projectId, logId }: { projectId: stri
   const branch: string = projectId === '1' ? 'feature/login-fix' : projectId === '2' ? 'release-1.0' : 'hotfix-22'
   const commitId: string = logId === 'log-1' ? 'a1b2c3d' : logId === 'log-2' ? 'z9y8x7w' : 'l4m5n6o'
   const time: string = logId === 'log-1' ? '09/10 14:32' : logId === 'log-2' ? '09/09 19:05' : '09/08 17:03'
-  const operator: string = projectId === '1' ? '李铁' : projectId === '2' ? '牛牛' : '斑斑'
+  const operator: string = projectId === '1' ? USERS[0] : projectId === '2' ? USERS[1] : USERS[2]
   const status: '成功' | '失败' = logId === 'log-2' ? '失败' : '成功'
   const workflowFile: string = 'ci.yml'
   const lines: string[] = [

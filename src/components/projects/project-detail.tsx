@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Table as AntTable, Button as AntButton, Space, Tag, Popconfirm, App as AntApp, Modal, Form, Input, Select as AntSelect, Drawer, Tabs } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { SettingOutlined, PlusOutlined, MinusCircleOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
+import { USERS } from '@/constants/mock'
 
 interface DeployRecord {
   id: string;
@@ -39,7 +40,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
     activeBranch: projectId === '1' ? 'feature/login-fix' : projectId === '2' ? 'release-1.0' : 'hotfix-22',
     envUrl: projectId === '1' ? 'order-service-feature-login-fix.stg.g123.jp' : projectId === '2' ? 'user-service-release-1-0.stg.g123.jp' : 'payment-api-hotfix-22.stg.g123.jp',
     latestDeployAt: projectId === '1' ? '2025-03-21 14:55:37' : projectId === '2' ? '2025-09-09 11:15:00' : '2025-09-05 19:42:00',
-    lastDeployer: projectId === '1' ? '李铁' : projectId === '2' ? '牛牛' : '斑斑',
+    lastDeployer: projectId === '1' ? USERS[0] : projectId === '2' ? USERS[1] : USERS[2],
     // 当前分支对应的 CI Workflow 文件名（仅前端原型展示用）
     workflowFile: 'ci.yml'
   }
@@ -48,7 +49,7 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
   const records: DeployRecord[] = [
     { id: 'log-1', time: '2025-03-21 14:55:37', branch: repoMeta.activeBranch, commitId: shortCommitId, status: '成功', operator: repoMeta.lastDeployer },
     { id: 'log-2', time: '2025-03-21 14:55:37', branch: repoMeta.activeBranch, commitId: 'z9y8x7w', status: '失败', operator: repoMeta.lastDeployer },
-    { id: 'log-3', time: '2025-03-21 14:55:37', branch: 'bugfix-123', commitId: 'l4m5n6o', status: '成功', operator: '斑斑' },
+    { id: 'log-3', time: '2025-03-21 14:55:37', branch: 'bugfix-123', commitId: 'l4m5n6o', status: '成功', operator: USERS[2] },
   ]
 
   // 当前生效分支最近一次的 commit（用于日志展示）
