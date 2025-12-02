@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { Select as AntSelect, Button as AntButton } from 'antd'
+import { Select as AntSelect } from 'antd'
 import { useRouter } from 'next/navigation'
 import EnvironmentProjectDetail from './project-detail'
 
@@ -11,7 +11,7 @@ interface ProjectRow {
   name: string // 仓库名称
 }
 
-function PreviewSteps({ onConfigure }: { onConfigure: () => void }) {
+function PreviewSteps() {
   const steps = [
     {
       id: 1,
@@ -152,19 +152,16 @@ export default function ProjectsOverview() {
           onChange={setSelectedRepoId}
           options={dropdownOptions}
           showSearch
-          filterOption={(input, option) =>
-            ((option as any)?.repoNameSearch ?? '').includes(input.toLowerCase())
-          }
+          filterOption={(input, option) => {
+            const opt = option as { repoNameSearch?: string } | undefined
+            const keyword = input.toLowerCase()
+            const repoName = (opt?.repoNameSearch ?? '').toLowerCase()
+            return repoName.includes(keyword)
+          }}
         />
       </div>
 
-      <PreviewSteps
-        onConfigure={() => {
-          if (activeRepoId) {
-            router.push(`/environments/${activeRepoId}`)
-          }
-        }}
-      />
+      <PreviewSteps />
 
       {activeRepoId ? (
         <div style={{ background: '#fff', borderRadius: 12 }}>
