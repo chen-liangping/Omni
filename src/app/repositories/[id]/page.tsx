@@ -3,11 +3,12 @@
  * 说明：仓库详情页面已下线，此处保留兼容路由并提示跳转
  */
 'use client'
+import React from 'react'
 import Link from 'next/link'
 import { Button as AntButton, Card as AntCard } from 'antd'
 
-export default function RepositoryDetailRoute({ params }: { params: { id: string } }) {
-  const { id } = params
+export default function RepositoryDetailRoute({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = React.use(params)
   return (
     <div style={{ padding: 16 }}>
       <AntCard>
