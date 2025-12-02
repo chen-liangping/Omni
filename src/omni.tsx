@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Image from 'next/image'
 import { Dropdown, type MenuProps, ConfigProvider, App as AntApp } from 'antd'
 import { DownOutlined } from '@ant-design/icons'
+import { useRouter } from 'next/navigation'
 
 /**
  * 这段代码实现了：
@@ -46,6 +47,8 @@ export function useToast() {
 export type User = { name: string; avatar: string; role: string }
 
 export function UserAvatarMenu({ user }: { user: User }) {
+  const router = useRouter()
+  const { message: msg } = AntApp.useApp()
   const localPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII='
   const menuItems: MenuProps['items'] = [
     { key: 'profile', label: '个人资料' },
@@ -56,7 +59,14 @@ export function UserAvatarMenu({ user }: { user: User }) {
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
     if (key === 'profile') console.log('跳转到个人资料')
     if (key === 'settings') console.log('打开账号设置')
-    if (key === 'logout') console.log('执行退出登录')
+    if (key === 'logout') {
+      // 退出登录：清除本地登录标记并跳转到登录页
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('omni_logged_in')
+      }
+      msg.success('已退出登录')
+      router.push('/login')
+    }
   }
   return (
     <Dropdown trigger={["click"]} placement="bottomRight" arrow menu={{ items: menuItems, onClick: handleMenuClick }}>

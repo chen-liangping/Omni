@@ -4,15 +4,15 @@ import React, { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Tabs, Table as AntTable, Tag, Button as AntButton, Space, Drawer, App as AntApp, Modal, Form, Input, Popconfirm, Select as AntSelect, Alert, Divider, Checkbox, Radio, Tooltip } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { DeleteOutlined, SettingOutlined, EditOutlined, BranchesOutlined, DotChartOutlined, RedoOutlined, CheckOutlined } from '@ant-design/icons'
+import { DeleteOutlined, SettingOutlined, EditOutlined, BranchesOutlined, DotChartOutlined, RedoOutlined, CheckOutlined, SwapOutlined } from '@ant-design/icons'
 
 type DeployStatus = '部署完成' | '测试完成' | '失败'
 interface DeploymentRow {
   id: string
-  commitNumber: string
+  prNumber: string
   branch: string
   envUrl: string
-  commitMsg: string
+  prMsg: string
   author: string
   result: '成功' | '失败'
   status: DeployStatus
@@ -69,10 +69,10 @@ export default function EnvironmentProjectDetail({ id, embedded = false }: { id:
       return [
         { 
           id: 'p1', 
-          commitNumber: 'a1b2c3d', 
+          prNumber: 'a1b2c3d', 
           branch: 'feature/optimization', 
           envUrl: 'https://publisher-dev.ctw.inc', 
-          commitMsg: '优化构建流程', 
+          prMsg: '优化构建流程', 
           author: 'lin.y@ctw.inc', 
           result: '成功', 
           status: '测试完成', 
@@ -84,10 +84,10 @@ export default function EnvironmentProjectDetail({ id, embedded = false }: { id:
         } as DeploymentRow,
         { 
           id: 'p2', 
-          commitNumber: 'f6g7h8i', 
+          prNumber: 'f6g7h8i', 
           branch: 'main', 
           envUrl: 'https://publisher-prod.ctw.inc', 
-          commitMsg: 'Production Release 1.2', 
+          prMsg: 'Production Release 1.2', 
           author: 'yu.t@ctw.inc', 
           result: '成功', 
           status: '部署完成', 
@@ -102,9 +102,9 @@ export default function EnvironmentProjectDetail({ id, embedded = false }: { id:
     
     // Doraemon 项目：动态 URL，保留原有逻辑
     return [
-      { id: 'd1', commitNumber: '667', branch: 'feature/login-fix', envUrl: `d.stg.g123.jp/__preview/pr-667`, commitMsg: '登录异常处理与埋点修复', author: 'lin.y@ctw.inc', result: '成功', status: '部署完成', date: '2025-11-26 12:10:03', environment: 'Preview', duration: '49s', created: '3d ago', fullDate: '2025-11-26 12:10:03' } as DeploymentRow,
-      { id: 'd2', commitNumber: '668', branch: 'release-1.0', envUrl: `d.stg.g123.jp/__production/pr-668`, commitMsg: '发布 1.0 稳定版', author: 'yu.t@ctw.inc', result: '成功', status: '测试完成', date: '2025-11-21 09:30:11', environment: 'Production', duration: '1m 18s', created: 'Nov 11', fullDate: '2025-11-21 09:30:11' } as DeploymentRow,
-      { id: 'd3', commitNumber: '669', branch: 'bugfix-889', envUrl: `d.stg.g123.jp/__preview/pr-669`, commitMsg: '修复缓存穿透', author: 'wu.yuni@ctw.inc', result: '失败', status: '失败', date: '2025-11-13 17:40:55', environment: 'Preview', duration: '--', created: 'Just now', fullDate: '2025-11-13 17:40:55' } as DeploymentRow,
+      { id: 'd1', prNumber: '667', branch: 'feature/login-fix', envUrl: `d.stg.g123.jp/__preview/pr-667`, prMsg: '登录异常处理与埋点修复', author: 'lin.y@ctw.inc', result: '成功', status: '部署完成', date: '2025-11-26 12:10:03', environment: 'Preview', duration: '49s', created: '3d ago', fullDate: '2025-11-26 12:10:03' } as DeploymentRow,
+      { id: 'd2', prNumber: '668', branch: 'release-1.0', envUrl: `d.stg.g123.jp/__production/pr-668`, prMsg: '发布 1.0 稳定版', author: 'yu.t@ctw.inc', result: '成功', status: '测试完成', date: '2025-11-21 09:30:11', environment: 'Production', duration: '1m 18s', created: 'Nov 11', fullDate: '2025-11-21 09:30:11' } as DeploymentRow,
+      { id: 'd3', prNumber: '669', branch: 'bugfix-889', envUrl: `d.stg.g123.jp/__preview/pr-669`, prMsg: '修复缓存穿透', author: 'wu.yuni@ctw.inc', result: '失败', status: '失败', date: '2025-11-13 17:40:55', environment: 'Preview', duration: '--', created: 'Just now', fullDate: '2025-11-13 17:40:55' } as DeploymentRow,
     ]
   }, [repoNameInit, isPublisher])
 
@@ -130,39 +130,6 @@ export default function EnvironmentProjectDetail({ id, embedded = false }: { id:
   const [activeDomainDeploymentId, setActiveDomainDeploymentId] = useState<string | null>(null)
 
   const columns: ColumnsType<DeploymentRow> = [
-    {
-      title: 'Commit Mumber',
-      dataIndex: 'commitNumber',
-      key: 'commitNumber',
-      width: 120,
-      render: (id: string) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <a
-            href="#"
-            onClick={(e) => { e.preventDefault(); setActiveCommit(id); setLogOpen(true) }}
-            style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }}
-          >
-            {id}
-          </a>
-        </div>
-      )
-    },
-    {
-      title: 'Commit',
-      key: 'commit',
-      width: 200,
-      render: (_: unknown, r: DeploymentRow) => (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, lineHeight: '18px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6,fontSize: 14 }}>
-            <BranchesOutlined style={{ color: '#595959' }} />
-            <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }}>
-              {r.branch}
-            </span>
-          </div>
-          <div style={{ fontSize: 12, color: '#8c8c8c' }}>{r.commitMsg}</div>
-        </div>
-      )
-    },
     { 
       title: '环境URL', 
       dataIndex: 'envUrl',
@@ -190,8 +157,36 @@ export default function EnvironmentProjectDetail({ id, embedded = false }: { id:
           </a>
         ) : null
     },
+    {
+      title: 'Branch',
+      dataIndex: 'branch',
+      key: 'branch',
+      width: 200,
+      render: (branch: string) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14 }}>
+          <BranchesOutlined style={{ color: '#595959' }} />
+          <span
+            style={{
+              fontFamily:
+                'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+            }}
+          >
+            {branch}
+          </span>
+        </div>
+      ),
+    },
+    {
+      title: 'Comment',
+      key: 'comment',
+      width: 200,
+      render: (_: unknown, r: DeploymentRow) => (
+        <div style={{ fontSize: 12, color: '#8c8c8c', lineHeight: '18px' }}>{r.prMsg}</div>
+      ),
+    },
+
     { title: '提交人', dataIndex: 'author',width: 80, key: 'author' },
-    { title: '状态', dataIndex: 'status',width: 80, key: 'status', render: (s: DeployStatus) => {
+    { title: '状态', dataIndex: 'status',width: 120, key: 'status', render: (s: DeployStatus) => {
       const color = s === '测试完成' ? '#1677ff' : s === '部署完成' ? '#32CD32' : '#ff4d4f'
       return (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -200,7 +195,7 @@ export default function EnvironmentProjectDetail({ id, embedded = false }: { id:
         </span>
       )
     }},
-    { title: '部署日期', dataIndex: 'date',width: 150, key: 'date' },
+    { title: '最新部署时间', dataIndex: 'date',width: 150, key: 'date' },
     {
       title: '操作',
       key: 'actions',
@@ -221,11 +216,11 @@ export default function EnvironmentProjectDetail({ id, embedded = false }: { id:
               disabled={r.status === '测试完成'}
             />
           </Tooltip>
-          <Tooltip title="编辑前端域名">
+          <Tooltip title="切换前端域名">
             <AntButton
               size="small"
               shape="circle"
-              icon={<EditOutlined />}
+              icon={<SwapOutlined />}
               onClick={() => {
                 setActiveDomainDeploymentId(r.id)
                 const current = r.envUrl || ''
@@ -267,7 +262,7 @@ export default function EnvironmentProjectDetail({ id, embedded = false }: { id:
         items={[
           {
             key: 'deployments',
-            label: '部署列表',
+            label: '环境列表',
             children: (
               <AntTable<DeploymentRow>
                 rowKey="id"
@@ -279,7 +274,7 @@ export default function EnvironmentProjectDetail({ id, embedded = false }: { id:
           },
           {
             key: 'settings',
-            label: '设置',
+            label: '环境配置',
             children: (
               <SettingsContent
                 repoName={repoName}

@@ -1,8 +1,8 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { Button as AntButton, Input, Space, Select as AntSelect, Modal, Form, message } from 'antd'
-import { SearchOutlined, PlusOutlined } from '@ant-design/icons'
+import { Select as AntSelect, Button as AntButton } from 'antd'
+import { useRouter } from 'next/navigation'
 import EnvironmentProjectDetail from './project-detail'
 
 interface ProjectRow {
@@ -11,11 +11,92 @@ interface ProjectRow {
   name: string // 仓库名称
 }
 
+function PreviewSteps({ onConfigure }: { onConfigure: () => void }) {
+  const steps = [
+    {
+      id: 1,
+      title: '环境准备',
+      desc: '创建 PR 后自动生成环境URL',
+      status: 'done' as const,
+    },
+    {
+      id: 2,
+      title: '功能测试',
+      desc: '测试根据需求进行功能测试',
+      status: 'current' as const,
+    },
+    {
+      id: 3,
+      title: '销毁环境',
+      desc: '功能测试完成后，合并代码，销毁环境，释放资源',
+      status: 'todo' as const,
+    },
+  ]
+
+  return (
+    <div
+      style={{
+        marginBottom: 16,
+        borderRadius: 16,
+        border: '1px solid #f0f0f0',
+        padding: 16,
+        background: '#ffffff',
+      }}
+    >
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>预览环境流程</h2>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        {steps.map((s, index) => {
+          // 不展示进度，仅用统一样式展示流程步骤
+          const circleColor = '#f3f4f6'
+          const lineColor = '#e5e7eb'
+          return (
+            <div key={s.id} style={{ flex: 1, display: 'flex', alignItems: 'flex-start' }}>
+              {/* 圆点 */}
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#4b5563',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  background: circleColor,
+                  flexShrink: 0,
+                }}
+              >
+                {s.id}
+              </div>
+              {/* 文本 */}
+              <div style={{ marginLeft: 12 }}>
+                <div style={{ fontWeight: 500, color: '#1f2933' }}>{s.title}</div>
+                <div style={{ color: '#6b7280', fontSize: 12, marginTop: 4 }}>{s.desc}</div>
+              </div>
+              {/* 连接线 */}
+              {index < steps.length - 1 && (
+                <div
+                  style={{
+                    flex: 1,
+                    height: 2,
+                    marginTop: 18,
+                    marginLeft: 16,
+                    background: lineColor,
+                  }}
+                />
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function ProjectsOverview() {
-  const [searchValue, setSearchValue] = useState('')
   const [selectedRepoId, setSelectedRepoId] = useState<string>('')
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [form] = Form.useForm()
+  const router = useRouter()
 
   const rawData: ProjectRow[] = useMemo(() => ([
     { id: '1', projectName: 'Doraemon', name: 'doraemon' },
@@ -29,18 +110,15 @@ export default function ProjectsOverview() {
     }
   }, [rawData, selectedRepoId])
 
-  const dropdownOptions = useMemo(() => {
-    const keyword = searchValue.trim().toLowerCase()
-    return rawData
-      .filter(item => {
-        if (!keyword) return true
-        return item.projectName.toLowerCase().includes(keyword) || item.name.toLowerCase().includes(keyword)
-      })
-      .map(item => ({
+  const dropdownOptions = useMemo(
+    () =>
+      rawData.map(item => ({
         value: item.id,
-        label: `${item.projectName} / ${item.name}`
-      }))
-  }, [rawData, searchValue])
+        label: `${item.name}`,
+        repoNameSearch: item.name.toLowerCase(),
+      })),
+    [rawData]
+  )
 
   useEffect(() => {
     if (dropdownOptions.length === 0) return
@@ -66,22 +144,27 @@ export default function ProjectsOverview() {
           gap: 16,
         }}
       >
-        <Space size={8} style={{ display: 'flex', alignItems: 'center' }}>
-          <span style={{ fontSize: 16, fontWeight: 500, color: 'var(--heading)' }}>仓库</span>
-          <AntSelect
-            style={{ width: 260 }}
-            placeholder="选择仓库"
-            value={selectedRepoId}
-            onChange={setSelectedRepoId}
-            options={dropdownOptions}
-            showSearch
-            filterOption={false}
-          />
-        </Space>
-        <AntButton type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>
-          新增仓库
-        </AntButton>
+        <span style={{ fontSize: 20, fontWeight: 500, color: 'var(--heading)' }}>多环境</span>
+        <AntSelect
+          style={{ width: 260 }}
+          placeholder="选择仓库"
+          value={selectedRepoId}
+          onChange={setSelectedRepoId}
+          options={dropdownOptions}
+          showSearch
+          filterOption={(input, option) =>
+            ((option as any)?.repoNameSearch ?? '').includes(input.toLowerCase())
+          }
+        />
       </div>
+
+      <PreviewSteps
+        onConfigure={() => {
+          if (activeRepoId) {
+            router.push(`/environments/${activeRepoId}`)
+          }
+        }}
+      />
 
       {activeRepoId ? (
         <div style={{ background: '#fff', borderRadius: 12 }}>
@@ -91,42 +174,6 @@ export default function ProjectsOverview() {
         <div style={{ textAlign: 'center', padding: 48, color: '#999' }}>暂无可展示的仓库</div>
       )}
 
-      <Modal
-        title="新增仓库"
-        open={isModalOpen}
-        onCancel={() => setIsModalOpen(false)}
-        onOk={() => {
-          form.validateFields().then(values => {
-            message.success('仓库新增成功')
-            setIsModalOpen(false)
-            form.resetFields()
-          })
-        }}
-      >
-        <Form form={form} layout="vertical">
-          <Form.Item name="repoUrl" label="GitHub 仓库地址" rules={[{ required: true, message: '请选择仓库地址' }]}>
-            <AntSelect
-              showSearch
-              placeholder="搜索 GitHub 仓库"
-              options={[
-                { value: 'https://github.com/company/doraemon', label: 'company/doraemon' },
-                { value: 'https://github.com/company/publisher', label: 'company/publisher' },
-                { value: 'https://github.com/company/publisher-cp', label: 'company/publisher-cp' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="project" label="项目" rules={[{ required: true, message: '请选择所属项目' }]}>
-            <AntSelect
-              showSearch
-              placeholder="搜索所属项目"
-              options={rawData.map(p => ({ label: p.projectName, value: p.projectName }))}
-            />
-          </Form.Item>
-          <Form.Item name="yaml" label="YAML 配置 (可选)">
-            <Input.TextArea rows={6} placeholder="# 粘贴您的 YAML 配置" style={{ fontFamily: 'monospace' }} />
-          </Form.Item>
-        </Form>
-      </Modal>
     </div>
   )
 }
