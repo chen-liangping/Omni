@@ -48,3 +48,8 @@ main {
 
 a { color: var(--accent); }
 
+/* 统一全站 Tag 圆角：更大、胶囊风格 */
+.ant-tag {
+  border-radius: 999px !important;
+}
+

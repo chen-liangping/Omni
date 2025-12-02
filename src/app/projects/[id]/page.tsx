@@ -1,16 +1,12 @@
 /**
  * 路由：/projects/[id]
- * 页面：项目（仓库）详情（薄壳）
- * 实现：src/components/projects/project-detail.tsx
+ * 页面：多环境 - 项目详情（薄壳，兼容旧路径）
+ * 实现：src/components/environments/project-detail.tsx
  */
-import React from 'react'
-import ProjectDetail from '../../../components/projects/project-detail'
+'use client'
+import EnvironmentProjectDetail from '@/components/environments/project-detail'
 
-interface Props { params: Promise<{ id: string }> }
-
-// 这段代码实现了“薄壳”详情页，仅返回业务组件，使用了 React.use 解包路由参数
-export default function ProjectDetailRoute({ params }: Props) {
-  const { id } = React.use(params)
-  return <ProjectDetail projectId={id} />
+export default function ProjectDetailRoute({ params }: { params: { id: string } }) {
+  return <EnvironmentProjectDetail id={params.id} />
 }
 

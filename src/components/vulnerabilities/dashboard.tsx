@@ -29,17 +29,16 @@ export default function VulnerabilityDashboard() {
   const severity = { critical: 0, high: 5, medium: 9, low: 0, info: 0 }
 
   const projects: ProjectOverviewItem[] = useMemo(() => ([
-    { id: 'p1', name: 'test12', riskScore: 0, vulnerabilities: 0, openIssues: 0 },
-    { id: 'p2', name: '123', riskScore: 0, vulnerabilities: 0, openIssues: 0 },
-    { id: 'p3', name: '2221122', riskScore: 58.2, vulnerabilities: 11, openIssues: 11 },
-    { id: 'p4', name: 'ceshiaaa', riskScore: 44, vulnerabilities: 1, openIssues: 1 },
-    { id: 'p5', name: 'testaaa', riskScore: 39, vulnerabilities: 2, openIssues: 2 }
+    { id: 'p1', name: 'tenken', riskScore: 0, vulnerabilities: 0, openIssues: 0 },
+    { id: 'p2', name: 'core', riskScore: 0, vulnerabilities: 0, openIssues: 0 },
+    { id: 'p3', name: 'Doraemon', riskScore: 58.2, vulnerabilities: 11, openIssues: 11 },
+    { id: 'p4', name: 'ossan', riskScore: 58.2, vulnerabilities: 11, openIssues: 11 },
   ]), [])
 
   const columns: ColumnsType<ProjectOverviewItem> = [
-    { title: 'PROJECT', dataIndex: 'name', key: 'name', render: (v: string) => <Link href="/projects">{v}</Link> },
+    { title: '项目', dataIndex: 'name', key: 'name', render: (v: string) => <Link href="/projects">{v}</Link> },
     {
-      title: 'RISK SCORE',
+      title: '风险分数',
       dataIndex: 'riskScore',
       key: 'risk',
       render: (v: number) => (
@@ -48,8 +47,8 @@ export default function VulnerabilityDashboard() {
         </Tag>
       )
     },
-    { title: 'VULNERABILITIES', dataIndex: 'vulnerabilities', key: 'vulns' },
-    { title: 'OPEN', dataIndex: 'openIssues', key: 'open' },
+    { title: '漏洞数', dataIndex: 'vulnerabilities', key: 'vulns' },
+    { title: '未修复', dataIndex: 'openIssues', key: 'open' },
   ]
 
   return (
@@ -60,9 +59,9 @@ export default function VulnerabilityDashboard() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <BugOutlined style={{ fontSize: 18, color: '#1677ff' }} />
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, color: '#8c8c8c' }}>Total Vulnerabilities</div>
+                <div style={{ fontSize: 12, color: '#8c8c8c' }}>漏洞总数</div>
                 <div style={{ fontSize: 28, fontWeight: 700 }}>{totals.total}</div>
-                <div style={{ fontSize: 12, color: '#8c8c8c' }}>All Vulnerabilities</div>
+                <div style={{ fontSize: 12, color: '#8c8c8c' }}>所有漏洞</div>
               </div>
             </div>
           </AntCard>
@@ -72,9 +71,9 @@ export default function VulnerabilityDashboard() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <AlertOutlined style={{ fontSize: 18, color: '#fa541c' }} />
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, color: '#8c8c8c' }}>Open Issues</div>
+                <div style={{ fontSize: 12, color: '#8c8c8c' }}>未修复</div>
                 <div style={{ fontSize: 28, fontWeight: 700 }}>{totals.open}</div>
-                <div style={{ fontSize: 12, color: '#8c8c8c' }}>100% of total</div>
+                <div style={{ fontSize: 12, color: '#8c8c8c' }}>占比 100%</div>
               </div>
             </div>
           </AntCard>
@@ -84,9 +83,9 @@ export default function VulnerabilityDashboard() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <CheckCircleOutlined style={{ fontSize: 18, color: '#52c41a' }} />
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, color: '#8c8c8c' }}>Fixed Issues</div>
+                <div style={{ fontSize: 12, color: '#8c8c8c' }}>已修复</div>
                 <div style={{ fontSize: 28, fontWeight: 700 }}>{totals.fixed}</div>
-                <div style={{ fontSize: 12, color: '#8c8c8c' }}>0% of total</div>
+                <div style={{ fontSize: 12, color: '#8c8c8c' }}>占比 0%</div>
               </div>
             </div>
           </AntCard>
@@ -96,9 +95,9 @@ export default function VulnerabilityDashboard() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <ClockCircleOutlined style={{ fontSize: 18, color: '#2f54eb' }} />
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, color: '#8c8c8c' }}>Overdue</div>
+                <div style={{ fontSize: 12, color: '#8c8c8c' }}>已逾期</div>
                 <div style={{ fontSize: 28, fontWeight: 700 }}>{totals.overdue}</div>
-                <div style={{ fontSize: 12, color: '#8c8c8c' }}>Needs attention</div>
+                <div style={{ fontSize: 12, color: '#8c8c8c' }}>需要关注</div>
               </div>
             </div>
           </AntCard>
@@ -107,30 +106,30 @@ export default function VulnerabilityDashboard() {
 
       <AntRow gutter={16}>
         <AntCol xs={24} md={12}>
-          <AntCard title="Vulnerability Severity">
+          <AntCard title="漏洞严重级别">
             <div style={{ display: 'grid', gap: 12 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 40px', alignItems: 'center', gap: 8 }}>
-                <span>Critical</span>
+                <span>致命</span>
                 <AntProgress percent={0} showInfo={false} />
                 <span style={{ textAlign: 'right' }}>{severity.critical}</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 40px', alignItems: 'center', gap: 8 }}>
-                <span>High</span>
+                <span>高危</span>
                 <AntProgress percent={62} status="exception" showInfo={false} />
                 <span style={{ textAlign: 'right' }}>{severity.high}</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 40px', alignItems: 'center', gap: 8 }}>
-                <span>Medium</span>
+                <span>中危</span>
                 <AntProgress percent={100} strokeColor="#faad14" showInfo={false} />
                 <span style={{ textAlign: 'right' }}>{severity.medium}</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 40px', alignItems: 'center', gap: 8 }}>
-                <span>Low</span>
+                <span>低危</span>
                 <AntProgress percent={0} showInfo={false} />
                 <span style={{ textAlign: 'right' }}>{severity.low}</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 40px', alignItems: 'center', gap: 8 }}>
-                <span>Info</span>
+                <span>信息</span>
                 <AntProgress percent={0} showInfo={false} />
                 <span style={{ textAlign: 'right' }}>{severity.info}</span>
               </div>
@@ -138,7 +137,7 @@ export default function VulnerabilityDashboard() {
           </AntCard>
         </AntCol>
         <AntCol xs={24} md={12}>
-          <AntCard title="Projects Overview" extra={<Link href="/projects">View all projects →</Link>}>
+          <AntCard title="项目概览" extra={<Link href="/projects">查看所有项目 →</Link>}>
             <AntTable<ProjectOverviewItem>
               rowKey="id"
               size="small"

@@ -1,13 +1,13 @@
 /**
  * 路由：/projects
- * 页面：仓库有效分支列表（薄壳）
- * 实现：src/components/projects/branches-list.tsx
+ * 页面：多环境 - 项目列表（薄壳，兼容旧路径）
+ * 实现：src/components/environments/projects-overview.tsx
  */
 "use client"
-import BranchesList from '@/components/projects/branches-list'
+import ProjectsOverview from '@/components/environments/projects-overview'
 
-// 这段代码实现了“薄壳”列表页：仅返回业务组件
+// 兼容旧地址，将 /projects 显示为新的“多环境项目列表”
 export default function ProjectsListRoute() {
-  return <BranchesList />
+  return <ProjectsOverview />
 }
 

@@ -1,9 +1,8 @@
-'use client'
-
 import VulnerabilityDetail from '@/components/vulnerabilities/vulnerability-detail'
 
-export default function Page({ params }: { params: { id: string } }) {
-  return <VulnerabilityDetail id={params.id} />
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  return <VulnerabilityDetail id={id} />
 }
 
 

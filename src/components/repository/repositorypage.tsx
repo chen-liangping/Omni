@@ -198,8 +198,6 @@ export default function RepositoriesPage() {
       render: (_: unknown, record: Repository) => (
         <Space>
           <AntButton type="link" onClick={() => handleInitialize(record.id)}>初始化</AntButton>
-          <AntButton type="link">归档</AntButton>
-          <AntButton type="link">删除</AntButton>
         </Space>
       )
     }

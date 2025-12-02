@@ -49,37 +49,57 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <nav style={{ width: '100%', background: 'transparent', height: '100%' }}>
             <Menu
               mode="inline"
-              defaultOpenKeys={["repository","vulnerabilities"]}
+              defaultOpenKeys={["internal-repos","security","logs"]}
               style={{ height: '100%', borderRight: 0 }}
               items={[
                 {
-                  key: 'repository',
-                  label: '仓库',
+                  key: 'internal-repos',
+                  label: '社内仓库管理',
                   children: [
-                    { key: 'repository-list', label: <Link href="/repositories">仓库列表</Link> },
-                    { key: 'permissions', label: <Link href="/permissions">权限变更记录</Link> },
-                    { key: 'repository-apis', label: <Link href="/repositories/apis">接口调用情况</Link> }
+                    /*{ key: 'repository-list', label: <Link href="/repositories">仓库</Link> },*/
+                    { key: 'projects-list', label: <Link href="/environments">多环境</Link> },
                   ]
                 },
                 {
-                  key: 'projects',
-                  label: '发布与部署',
+                  key: 'security',
+                  label: '安全合规',
                   children: [
-                    { key: 'projects-list', label: <Link href="/projects">环境一览</Link> },
-                    { key: 'webhooks', label: <Link href="/webhooks">Webhook 机器人</Link> },
+                    { key: 'vuln-dashboard', label: <Link href="/vulnerabilities/dashboard">总览</Link> },
+                    { key: 'vuln-list', label: <Link href="/vulnerabilities">漏洞列表</Link> },
+                    { key: 'vuln-config', label: <Link href="/vulnerabilities/config">漏洞扫描(待开发)</Link> }
                   ]
                 },
                 {
-                  key: 'vulnerabilities',
-                  label: '漏洞管理',
+                  key: 'permissions-mgmt',
+                  label: '权限管理',
                   children: [
-                    { key: 'vuln-dashboard', label: <Link href="/vulnerabilities/dashboard">Dashboard</Link> },
-                    { key: 'vuln-list', label: <Link href="/vulnerabilities">漏洞列表</Link> }
+                    { key: 'role-list', label: <Link href="/permissions/roles">角色列表</Link> },
+                    { key: 'member-list', label: <Link href="/permissions/members">成员管理</Link> }
                   ]
                 },
-                
-               /* 预留扩展位 */
-                
+                {
+                  key: 'logs',
+                  label: '日志',
+                  children: [
+                    { key: 'api-calls', label: <Link href="/permissions">接口调用</Link> },
+                    { key: 'audit-logs', label: <Link href="/permissions/audit-logs">操作日志</Link> }
+                  ]
+                },
+                {
+                  key: 'alerts',
+                  label: '社内告警(待开发)',
+                  children: [
+                    { key: 'alert-list', label: <Link href="/alerts">告警列表</Link> },
+                    { key: 'alert-config', label: <Link href="/alerts/config">告警配置</Link> }
+                  ]
+                },
+                {
+                  key: 'settings',
+                  label: '费用报表(待开发)',
+                  children: [
+                    { key: 'expense-report', label: <Link href="/expenses">费用报表</Link> }
+                  ]
+                }
               ]}
             />
           </nav>

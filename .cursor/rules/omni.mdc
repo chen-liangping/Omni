@@ -1,12 +1,22 @@
 ---
 alwaysApply: true
-metadata:
-  port: 8080
-  timeFormat: "YYYY-MM-DD HH:mm:ss"
-  timeExample: "2025-03-21 14:55:37"
-  people: ["张搬搬", "何牛牛", "石头", "常大智"]
 ---
+rule("标签样式") {
+  description = "所有标签（Tag）必须使用最大圆角（fully rounded corners）"
+}
 
-- 部署端口: 8080
-- 时间格式: 2025-03-21 14:55:37
-- 人员: 张搬搬、何牛牛、石头、常大智
+rule("字段 link 样式") {
+  description = "只有有跳转（navigation/link）效果的字段才能使用 link 样式，否则应为黑色或灰色字体"
+}
+
+rule("页面操作效果") {
+  description = "页面中的删除、编辑、新增等操作必须有具体实际效果操作，不允许只弹 message"
+}
+
+rule("列表操作按钮数量与样式") {
+  description = "当操作少于3个时，列表中每个操作使用文字按钮（文本加图标），不允许只用 icon。操作数量大于等于4个时，仅使用 icon，且鼠标悬浮时出现操作名称"
+}
+
+rule("示例人名与项目名称") {
+  description = "涉及人名和项目名称时，仅允许使用以下示例：chen.lp@ctw.inc、lin.y@ctw.inc、yu.t@ctw.inc、wu.yuni@ctw.inc，以及项目名称：Omni、Publisher、Doraemon、core、Shinchan。"
+}

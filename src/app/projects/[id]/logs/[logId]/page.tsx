@@ -1,17 +1,21 @@
 /**
  * 路由：/projects/[id]/logs/[logId]
- * 页面：部署日志详情（薄壳）
- * 实现：src/components/projects/project-log-detail.tsx
+ * 说明：旧版日志详情页已下线，保留兼容提示页
  */
-"use client"
-import React from 'react'
-import ProjectLogDetail from '@/components/projects/project-log-detail'
+'use client'
+import Link from 'next/link'
+import { Card as AntCard, Button as AntButton } from 'antd'
 
-interface Props { params: Promise<{ id: string; logId: string }> }
-
-// 这段代码实现了“薄壳”日志详情页，仅返回业务组件
-export default function ProjectLogDetailRoute({ params }: Props) {
-  const { id, logId } = React.use(params)
-  return <ProjectLogDetail projectId={id} logId={logId} />
+export default function ProjectLogDetailRoute({ params }: { params: { id: string; logId: string } }) {
+  const { id } = params
+  return (
+    <div style={{ padding: 16 }}>
+      <AntCard>
+        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>日志详情已移除</div>
+        <div style={{ color: '#666', marginBottom: 12 }}>请在项目详情页的部署列表中查看相关日志。</div>
+        <Link href={`/environments/${id}`}><AntButton type="primary">前往项目详情</AntButton></Link>
+      </AntCard>
+    </div>
+  )
 }
 
