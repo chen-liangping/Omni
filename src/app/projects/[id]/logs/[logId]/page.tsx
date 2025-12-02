@@ -3,11 +3,12 @@
  * 说明：旧版日志详情页已下线，保留兼容提示页
  */
 'use client'
+import React from 'react'
 import Link from 'next/link'
 import { Card as AntCard, Button as AntButton } from 'antd'
 
-export default function ProjectLogDetailRoute({ params }: { params: { id: string; logId: string } }) {
-  const { id } = params
+export default function ProjectLogDetailRoute({ params }: { params: Promise<{ id: string; logId: string }> }) {
+  const { id } = React.use(params)
   return (
     <div style={{ padding: 16 }}>
       <AntCard>
