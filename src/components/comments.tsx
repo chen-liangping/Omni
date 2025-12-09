@@ -5,8 +5,9 @@ import React, { useEffect, useRef } from 'react'
  * 这段代码实现了 在页面底部挂载 Giscus 评论组件，使用了原生 script 注入
  * 代码说明：组件在客户端 mount 时动态创建 <script> 标签并附加到占位容器
  * 修改原因：统一在文章/页面底部接入讨论区，便于协作反馈
+ * 兼容说明：在 React 19 中使用 React.JSX.Element 替代全局 JSX.Element
  */
-export default function Comments(): JSX.Element {
+export default function Comments(): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
