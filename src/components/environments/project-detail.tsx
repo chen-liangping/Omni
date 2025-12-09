@@ -43,8 +43,12 @@ export default function EnvironmentProjectDetail({ id, embedded = false }: { id:
   const isPublisher = id === '2' || id === '3' // Publisher 项目标识
 
   const [repoName, setRepoName] = useState<string>(repoNameInit)
-  const [repoUrl, setRepoUrl] = useState<string>(`company/${repoNameInit}`)
-  const [project, setProject] = useState<string>(projectInit)
+  // 仓库地址支持多选，这里使用 string[] 存储，默认包含一个基于 repoName 的地址
+  const [repoUrl, setRepoUrl] = useState<string[]>([`company/${repoNameInit}`])
+  // 产品主域名（Basic Info）
+  const [primaryDomain, setPrimaryDomain] = useState<string>(id === '1' ? 'doraemon.ctw.inc' : 'publisher.ctw.inc')
+  // 其它域名（多条可选）
+  const [extraDomains, setExtraDomains] = useState<string[]>([])
   const [webhookUrl, setWebhookUrl] = useState<string>('')
   
   const [titleHover, setTitleHover] = useState<boolean>(false)
@@ -54,8 +58,9 @@ export default function EnvironmentProjectDetail({ id, embedded = false }: { id:
   // 监听 id 变化更新状态（解决组件复用时的状态不同步问题）
   useEffect(() => {
     setRepoName(repoNameInit)
-    setRepoUrl(`company/${repoNameInit}`)
-    setProject(projectInit)
+    setRepoUrl([`company/${repoNameInit}`])
+    setPrimaryDomain(id === '1' ? 'doraemon.ctw.inc' : 'publisher.ctw.inc')
+    setExtraDomains([])
     setWebhookUrl('')
     setTempTitle(repoNameInit)
     setRepoYamls([
@@ -185,7 +190,7 @@ export default function EnvironmentProjectDetail({ id, embedded = false }: { id:
       ),
     },
 
-    { title: '提交人', dataIndex: 'author',width: 80, key: 'author' },
+    { title: 'Author', dataIndex: 'author',width: 80, key: 'author' },
     { title: '状态', dataIndex: 'status',width: 120, key: 'status', render: (s: DeployStatus) => {
       const color = s === '测试完成' ? '#1677ff' : s === '部署完成' ? '#32CD32' : '#ff4d4f'
       return (
@@ -222,9 +227,16 @@ export default function EnvironmentProjectDetail({ id, embedded = false }: { id:
               shape="circle"
               icon={<SwapOutlined />}
               onClick={() => {
+                // 点击切换前端域名时，数据来源为「环境配置」中填写的其它域名
+                if (!extraDomains || extraDomains.length === 0) {
+                  msg.warning('请先在环境配置中添加「其它域名」')
+                  return
+                }
                 setActiveDomainDeploymentId(r.id)
                 const current = r.envUrl || ''
-                const currentDomain = /d\.dev\.g123/.test(current) ? 'd.dev.g123' : 'd.stg.g123'
+                // 尝试从当前 URL 中匹配已有的其它域名，找不到则默认选中第一个
+                const matched = extraDomains.find(d => current.includes(d))
+                const currentDomain = matched || extraDomains[0]
                 domainForm.setFieldsValue({ domain: currentDomain })
                 setDomainModalOpen(true)
               }}
@@ -245,7 +257,13 @@ export default function EnvironmentProjectDetail({ id, embedded = false }: { id:
 
   // 设置 Tab：环境参数（父级持有数据，传给子组件渲染与保存）
   const [repoYamls, setRepoYamls] = useState<RepoYaml[]>([
-    { repo: repoNameInit, yaml: 'ci.yml', content: 'name: CI\non: [push]\njobs:\n  build:\n    runs-on: ubuntu-latest', directory: '/' }
+    {
+      // 默认以首个仓库地址为维度进行环境参数配置
+      repo: `company/${repoNameInit}`,
+      yaml: 'ci.yml',
+      content: 'name: CI\non: [push]\njobs:\n  build:\n    runs-on: ubuntu-latest',
+      directory: '/'
+    }
   ])
 
   return (
@@ -279,13 +297,15 @@ export default function EnvironmentProjectDetail({ id, embedded = false }: { id:
               <SettingsContent
                 repoName={repoName}
                 repoUrl={repoUrl}
-                project={project}
                 webhookUrl={webhookUrl}
-                onSaveBasic={(name, url, proj, webhook) => {
+                primaryDomain={primaryDomain}
+                extraDomains={extraDomains}
+                onSaveBasic={(name, url, webhook, primary, extras) => {
                   setRepoName(name)
                   setRepoUrl(url)
-                  setProject(proj)
                   setWebhookUrl(webhook)
+                  setPrimaryDomain(primary)
+                  setExtraDomains(extras)
                   msg.success('已保存')
                 }}
                 repoYamls={repoYamls}
@@ -359,8 +379,10 @@ export default function EnvironmentProjectDetail({ id, embedded = false }: { id:
                 const current = item.envUrl || ''
                 let nextUrl = current
                 if (current) {
-                  if (/d\.stg\.g123|d\.dev\.g123/.test(current)) {
-                    nextUrl = current.replace(/d\.stg\.g123|d\.dev\.g123/g, domain)
+                  // 如果当前 URL 中包含某个「其它域名」，则用选中的域名替换之；否则前面拼接选中域名
+                  const matched = extraDomains.find(d => current.includes(d))
+                  if (matched) {
+                    nextUrl = current.replace(matched, domain)
                   } else {
                     nextUrl = `${domain}${current.startsWith('/') ? '' : ''}${current}`
                   }
@@ -376,17 +398,25 @@ export default function EnvironmentProjectDetail({ id, embedded = false }: { id:
         }}
         okText="确定"
         cancelText="取消"
+        okButtonProps={{ disabled: !extraDomains || extraDomains.length === 0 }}
       >
-        <Form form={domainForm} layout="vertical" initialValues={{ domain: 'd.stg.g123' }}>
+        <Form form={domainForm} layout="vertical">
           <Form.Item
             name="domain"
             label="前端域名"
             rules={[{ required: true, message: '请选择前端域名' }]}
           >
-            <Radio.Group>
-              <Radio value="d.stg.g123">d.stg.g123</Radio>
-              <Radio value="d.dev.g123" style={{ marginLeft: 16 }}>d.dev.g123</Radio>
-            </Radio.Group>
+            {extraDomains && extraDomains.length > 0 ? (
+              <Radio.Group>
+                {extraDomains.map(domain => (
+                  <Radio key={domain} value={domain} style={{ display: 'block', marginTop: 4 }}>
+                    {domain}
+                  </Radio>
+                ))}
+              </Radio.Group>
+            ) : (
+              <div style={{ color: '#999' }}>暂无可用域名，请先在环境配置中添加「其它域名」</div>
+            )}
           </Form.Item>
         </Form>
       </Modal>
@@ -396,10 +426,11 @@ export default function EnvironmentProjectDetail({ id, embedded = false }: { id:
 
 function SettingsContent(props: {
   repoName: string
-  repoUrl: string
-  project: string
+  repoUrl: string[]
   webhookUrl: string
-  onSaveBasic: (name: string, url: string, project: string, webhook: string) => void
+  primaryDomain: string
+  extraDomains: string[]
+  onSaveBasic: (name: string, url: string[], webhook: string, primaryDomain: string, extraDomains: string[]) => void
   repoYamls: RepoYaml[]
   onSaveYamls: (yamls: RepoYaml[]) => void
 }) {
@@ -409,10 +440,38 @@ function SettingsContent(props: {
   const [yamlList, setYamlList] = useState<RepoYaml[]>(props.repoYamls)
   const [editorOpen, setEditorOpen] = useState<boolean>(false)
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
-  const hasMissing = yamlList.some(r => !r.yaml)
 
   // 基本信息编辑模式
   const [basicEditing, setBasicEditing] = useState<boolean>(false)
+
+  // 仓库地址候选列表（多选下拉），包含当前仓库名和几个示例仓库
+  const repoUrlOptions: { label: string; value: string }[] = Array.from(
+    new Map(
+      [
+        { label: `company/${props.repoName}`, value: `company/${props.repoName}` },
+        { label: 'company/doraemon', value: 'company/doraemon' },
+        { label: 'company/publisher', value: 'company/publisher' },
+        { label: 'company/publisher-cp', value: 'company/publisher-cp' },
+        { label: 'company/omni', value: 'company/omni' },
+      ].map(item => [item.value, item])
+    ).values()
+  )
+
+  // 当仓库地址列表变化时，自动为每个地址准备一份环境参数配置（非必填，未配置时为占位）
+  React.useEffect(() => {
+    setYamlList((prev) => {
+      const map = new Map(prev.map(item => [item.repo, item]))
+      const next: RepoYaml[] = props.repoUrl.map(url => {
+        return map.get(url) || {
+          repo: url,
+          yaml: '',
+          content: '',
+          directory: './'
+        }
+      })
+      return next
+    })
+  }, [props.repoUrl])
 
   return (
     <div style={{ display: 'grid', gap: 24 }}>
@@ -426,8 +485,9 @@ function SettingsContent(props: {
               formBasic.setFieldsValue({
                 repoName: props.repoName,
                 repoUrl: props.repoUrl,
-                project: props.project,
                 webhookUrl: props.webhookUrl,
+                primaryDomain: props.primaryDomain,
+                extraDomains: props.extraDomains,
               })
             }}>配置</AntButton>
           )}
@@ -440,32 +500,66 @@ function SettingsContent(props: {
             initialValues={{
               repoName: props.repoName,
               repoUrl: props.repoUrl,
-              project: props.project,
               webhookUrl: props.webhookUrl,
+              primaryDomain: props.primaryDomain,
+              extraDomains: props.extraDomains,
             }}
             onFinish={(values) => {
               // 更新 Basic Info
-              props.onSaveBasic(values.repoName, values.repoUrl, values.project, values.webhookUrl || '')
-              
-              // 如果仓库名变更，同步更新 yamlList 中的 repo 字段（假定 yamlList 仅包含当前仓库配置）
-              const nextYamls = yamlList.map(y => ({ ...y, repo: values.repoName }))
-              setYamlList(nextYamls)
-              props.onSaveYamls(nextYamls)
+              props.onSaveBasic(
+                values.repoName,
+                values.repoUrl || [],
+                values.webhookUrl || '',
+                values.primaryDomain || '',
+                values.extraDomains || []
+              )
               
               setBasicEditing(false)
             }}
           >
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
-              <Form.Item name="repoName" label="仓库名称" rules={[{ required: true }]}><Input /></Form.Item>
-              <Form.Item name="repoUrl" label="仓库地址" rules={[{ required: true }]}><Input /></Form.Item>
-              <Form.Item name="project" label="关联项目" rules={[{ required: true }]}>
-                <AntSelect>
-                  <AntSelect.Option value="Doraemon">Doraemon</AntSelect.Option>
-                  <AntSelect.Option value="Publisher">Publisher</AntSelect.Option>
-                </AntSelect>
+              <Form.Item name="repoName" label="产品名称" rules={[{ required: true }]}><Input /></Form.Item>
+              <Form.Item name="primaryDomain" label="产品主域名" rules={[{ required: true, message: '请输入主域名' }]}>
+                <Input placeholder="例如 doraemon.ctw.inc" />
+              </Form.Item>
+              {/* 仓库地址改为下拉多选框，支持选择多个地址 */}
+              <Form.Item
+                name="repoUrl"
+                label="仓库地址"
+                rules={[{ required: true, message: '请选择至少一个仓库地址' }]}
+              >
+                <AntSelect
+                  mode="multiple"
+                  placeholder="请选择关联仓库地址"
+                  options={repoUrlOptions}
+                />
               </Form.Item>
             </div>
             <div style={{ marginTop: 16 }}>
+              <Form.Item label="其它域名" required={false}>
+                <Form.List name="extraDomains">
+                  {(fields, { add, remove }) => (
+                    <>
+                      {fields.map((field) => (
+                        <div key={field.key} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                          <Form.Item
+                            {...field}
+                            style={{ flex: 1, marginBottom: 0 }}
+                          >
+                            <Input placeholder="例如 preview.doraemon.ctw.inc" />
+                          </Form.Item>
+                          <AntButton type="link" danger onClick={() => remove(field.name)}>
+                            删除
+                          </AntButton>
+                        </div>
+                      ))}
+                      <AntButton type="link" onClick={() => add()}>
+                        新增其它域名
+                      </AntButton>
+                    </>
+                  )}
+                </Form.List>
+              </Form.Item>
               <Form.Item name="webhookUrl" label="Webhook 地址">
                 <Input placeholder="例如 https://hooks.example.com/xxx" />
               </Form.Item>
@@ -482,16 +576,60 @@ function SettingsContent(props: {
           <>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
               <div>
-                <div style={{ color: '#8c8c8c', fontSize: 12, marginBottom: 4 }}>仓库名称</div>
+                <div style={{ color: '#8c8c8c', fontSize: 12, marginBottom: 4 }}>产品名称</div>
                 <div style={{ fontSize: 14, fontWeight: 500 }}>{props.repoName}</div>
               </div>
               <div>
-                <div style={{ color: '#8c8c8c', fontSize: 12, marginBottom: 4 }}>仓库地址</div>
-                <div style={{ fontSize: 14, fontFamily: 'monospace' }}>{props.repoUrl}</div>
+                <div style={{ color: '#8c8c8c', fontSize: 12, marginBottom: 4 }}>产品主域名</div>
+                <div style={{ fontSize: 14, fontFamily: 'monospace' }}>
+                  {props.primaryDomain || <span style={{ color: '#999' }}>未配置</span>}
+                </div>
               </div>
               <div>
-                <div style={{ color: '#8c8c8c', fontSize: 12, marginBottom: 4 }}>关联项目</div>
-                <Tag color="blue">{props.project}</Tag>
+                <div style={{ color: '#8c8c8c', fontSize: 12, marginBottom: 4 }}>仓库地址</div>
+                <div style={{ fontSize: 14, fontFamily: 'monospace', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {props.repoUrl && props.repoUrl.length > 0 ? (
+                    props.repoUrl.map((url) => (
+                      <span
+                        key={url}
+                        style={{
+                          padding: '2px 10px',
+                          borderRadius: 9999,
+                          background: '#f5f5f5',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                        }}
+                      >
+                        {url}
+                      </span>
+                    ))
+                  ) : (
+                    <span style={{ color: '#999' }}>未配置</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <div style={{ color: '#8c8c8c', fontSize: 12, marginBottom: 4 }}>其它域名</div>
+              <div style={{ fontSize: 14, fontFamily: 'monospace', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {props.extraDomains && props.extraDomains.length > 0 ? (
+                  props.extraDomains.map((d) => (
+                    <span
+                      key={d}
+                      style={{
+                        padding: '2px 10px',
+                        borderRadius: 9999,
+                        background: '#f5f5f5',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                      }}
+                    >
+                      {d}
+                    </span>
+                  ))
+                ) : (
+                  <span style={{ color: '#999' }}>未配置</span>
+                )}
               </div>
             </div>
             <div style={{ marginTop: 12 }}>
@@ -509,8 +647,6 @@ function SettingsContent(props: {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div style={{ fontWeight: 700, fontSize: 16 }}>环境参数配置</div>
         </div>
-        
-        {hasMissing && <Alert type="warning" showIcon message="存在未配置的仓库 YAML，需配置" style={{ marginBottom: 16 }} />}
         
         <div style={{ display: 'grid', gap: 12 }}>
           {yamlList.map((item, idx) => (
