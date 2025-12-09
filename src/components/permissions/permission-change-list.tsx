@@ -8,6 +8,7 @@ import { PROJECTS, USERS } from '@/constants/mock'
  * 这段代码实现了 权限变更记录列表页，使用了 AntD Table（本地 mock 数据）
  * 代码说明：展示 OA 流程名称、流程ID、流程详情、申请人、执行时间、执行结果（成功/失败）。
  * 修改原因：新增“权限变更记录”菜单与页面，便于审计和追踪权限修改。
+ * 兼容说明：在 React 19 中使用 React.JSX.Element 替代全局 JSX.Element
  */
 
 type RoleKey = 'admin' | 'writer' | 'reader'
@@ -29,7 +30,7 @@ const roleLabel: Record<RoleKey, string> = {
   reader: 'reader'
 }
 
-export default function PermissionChangeList(): JSX.Element {
+export default function PermissionChangeList(): React.JSX.Element {
   // mock 数据（原型内同目录就近维护）
   const rows: PermissionChangeRecord[] = useMemo(() => ([
     { processName: '项目权限开通', processId: 'OA-20251112001', projectName: PROJECTS[0], role: 'admin', applicant: USERS[0], executedAt: '2025-11-12 10:15:20', result: '成功' },
