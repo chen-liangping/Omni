@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ProjectSwitcher } from '@/components/layout/ProjectSwitcher'
 import { UserAvatarMenu } from '@/omni'
+import Comments from '@/components/comments'
 
 // 这段代码实现了应用级骨架：根据当前路由决定是否展示 Header + Sidebar
 // - 登录相关页面（/ 和 /login）只展示登录内容，不显示菜单和头部
@@ -154,6 +155,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
             }}
           >
             {children}
+            {!isAuthPage && <Comments />}
           </div>
         </main>
       </div>
