@@ -5,6 +5,7 @@ import { Providers } from '@/omni'
 import { UserAvatarMenu } from '@/omni'
 import { Menu } from 'antd'
 import Link from 'next/link'
+import Comments from '@/components/comments'
 
 
 const inter = Inter({ subsets: ['latin'] })
@@ -96,6 +97,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 {/* 主内容卡片容器：白底、圆角、阴影；与侧栏之间的 gap 让背景透出 */}
                 <div style={{ background: '#fff', borderRadius: 12, boxShadow: '0 8px 28px rgba(0,0,0,0.08)', padding: 16, minHeight: 80 }}>
                   {children}
+                  <Comments />
                 </div>
               </main>
             </div>
